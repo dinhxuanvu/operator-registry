@@ -103,6 +103,22 @@ func validateKubectlable(fileBytes []byte) error {
 	return nil
 }
 
+func validateExamplesKubectlable(crdTemplate v1beta1.CustomResourceDefinition) error {
+	errs := apiValidation.ValidateObjectMeta(
+		&crdTemplate.ObjectMeta,
+		false,
+		func(s string, prefix bool) []string {
+			return nil
+		},
+		field.NewPath("metadata"),
+	)
+
+	if len(errs) > 0 {
+		return fmt.Errorf("error validating object metadata: %s. %v", errs, crdTemplate)
+	}
+	return nil
+}
+
 func validateUsingPragma(pragma string, fileBytes []byte) (bool, error) {
 	const validateCRDPrefix = "validate-crd:"
 	const ParseAsKindPrefix = "parse-kind:"
@@ -241,6 +257,10 @@ func validateKind(kind string, fileBytes []byte) error {
 		if err != nil {
 			return err
 		}
+		err = validateExamplesAnnotations(&csv)
+		if err != nil {
+			return err
+		}
 		return err
 	case "CatalogSource":
 		cs := v1alpha1.CatalogSource{}
@@ -305,7 +325,8 @@ func validateResources(directory string) error {
 		}
 
 		fmt.Printf("validate %s\n", path)
-		if validateResource(path, f, err) != nil {
+		err = validateResource(path, f, err)
+		if err != nil {
 			return err
 		}
 
@@ -316,4 +337,94 @@ func validateResources(directory string) error {
 
 func CheckCatalogResources(manifestDir string) error {
 	return validateResources(manifestDir)
+}
+
+func validateExamplesAnnotations(csv *v1alpha1.ClusterServiceVersion) error {
+	var examples []v1beta1.CustomResourceDefinition
+	var annotationsNames = []string{"alm-examples", "olm.examples"}
+	var annotationsExamples string
+	var ok bool
+	annotations := csv.ObjectMeta.GetAnnotations()
+	// Return right away if no alm-examples are found.
+	if annotations == nil {
+		return fmt.Errorf("Unable to get annotations")
+	}
+	// Expect either `alm-examples` or `old.examples` but not both
+	// If both are present, `alm-examples` will be used
+	for _, name := range annotationsNames {
+		annotationsExamples, ok = annotations[name]
+		if ok {
+			break
+		}
+	}
+
+	// Can't find examples annotations, simply skip
+	if annotationsExamples == "" {
+		return nil
+	}
+
+	if err := json.Unmarshal([]byte(annotationsExamples), &examples); err != nil {
+		return err
+	}
+
+	providedAPIs, err := getProvidedAPIs(csv)
+	if err != nil {
+		return err
+	}
+	parsedExamples, err := parseExamplesAnnotations(examples)
+	if err != nil {
+		return err
+	}
+
+	if matchGVKProvidedAPIs(parsedExamples, providedAPIs) != nil {
+		return err
+	}
+
+	for _, template := range examples {
+		err = validateExamplesKubectlable(template)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func parseExamplesAnnotations(examples []v1beta1.CustomResourceDefinition) (map[schema.GroupVersionKind]struct{}, error) {
+	parsed := map[schema.GroupVersionKind]struct{}{}
+	for _, value := range examples {
+		parts := strings.SplitN(value.APIVersion, "/", 2)
+		if len(parts) < 2 {
+			return nil, fmt.Errorf("couldn't parse group/version from crd kind: %s", value.Kind)
+
+		}
+		parsed[schema.GroupVersionKind{Group: parts[0], Version: parts[1], Kind: value.Kind}] = struct{}{}
+	}
+	return parsed, nil
+}
+
+func matchGVKProvidedAPIs(examples map[schema.GroupVersionKind]struct{}, providedAPIs map[schema.GroupVersionKind]struct{}) error {
+	for key := range examples {
+		if _, ok := providedAPIs[key]; !ok {
+			return fmt.Errorf("couldn't match %v in provided APIs list: %v", key, providedAPIs)
+		}
+	}
+	return nil
+}
+
+func getProvidedAPIs(csv *v1alpha1.ClusterServiceVersion) (map[schema.GroupVersionKind]struct{}, error) {
+	provided := map[schema.GroupVersionKind]struct{}{}
+
+	for _, owned := range csv.Spec.CustomResourceDefinitions.Owned {
+		parts := strings.SplitN(owned.Name, ".", 2)
+		if len(parts) < 2 {
+			return nil, fmt.Errorf("couldn't parse plural.group from crd name: %s", owned.Name)
+		}
+		provided[schema.GroupVersionKind{Group: parts[1], Version: owned.Version, Kind: owned.Kind}] = struct{}{}
+	}
+
+	for _, api := range csv.Spec.APIServiceDefinitions.Owned {
+		provided[schema.GroupVersionKind{Group: api.Group, Version: api.Version, Kind: api.Kind}] = struct{}{}
+	}
+	return provided, nil
 }
