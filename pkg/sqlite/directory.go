@@ -194,8 +194,8 @@ func (d *DirectoryLoader) LoadPackagesWalkFunc(path string, f os.FileInfo, err e
 	decoder := yaml.NewYAMLOrJSONDecoder(fileReader, 30)
 	manifest := registry.PackageManifest{}
 	if err = decoder.Decode(&manifest); err != nil {
-		 log.Infof("could not decode contents of file %s into package: %v", path, err)
-		 return nil
+		log.Infof("could not decode contents of file %s into package: %v", path, err)
+		return nil
 	}
 	if manifest.PackageName == "" {
 		return nil

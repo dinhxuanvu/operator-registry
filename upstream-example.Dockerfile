@@ -1,4 +1,4 @@
-FROM quay.io/operator-framework/upstream-registry-builder as builder
+FROM upstream-registry-builder as builder
 
 COPY manifests manifests
 RUN ./bin/initializer -o ./bundles.db
