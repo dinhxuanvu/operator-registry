@@ -4,13 +4,13 @@ metadata:
   name: etcdclusters.etcd.database.coreos.com
 spec:
   group: etcd.database.coreos.com
-  version: v1beta2
-  scope: Namespaced
   names:
-    plural: etcdclusters
-    singular: etcdcluster
     kind: EtcdCluster
     listKind: EtcdClusterList
+    plural: etcdclusters
     shortNames:
-      - etcdclus
-      - etcd
+    - etcdclus
+    - etcd
+    singular: etcdcluster
+  scope: Namespaced
+  version: v1beta2
