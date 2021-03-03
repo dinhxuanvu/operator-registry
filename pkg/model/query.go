@@ -158,8 +158,8 @@ func (q Querier) GetLatestChannelEntriesThatProvide(ctx context.Context, group, 
 
 	for _, pkg := range q.model {
 		for _, ch := range pkg.Channels {
-			var b = ch.Head
-			for b != nil && b.Replaces != "" {
+			b := ch.Head
+			for b != nil {
 				if b.Provides(group, version, kind) {
 					entries = append(entries, &registry.ChannelEntry{
 						PackageName: b.Package.Name,
@@ -167,6 +167,9 @@ func (q Querier) GetLatestChannelEntriesThatProvide(ctx context.Context, group, 
 						BundleName:  b.Name,
 						Replaces:    b.Replaces,
 					})
+					break
+				}
+				if b.Replaces == "" {
 					break
 				}
 				b = ch.Bundles[b.Replaces]
@@ -185,6 +188,9 @@ func (q Querier) GetBundleThatProvides(ctx context.Context, group, version, kind
 		return nil, err
 	}
 
+	// It's possible for multiple packages to provide an API, but this function is forced to choose one.
+	// To do that deterministically, we'll pick the the bundle based on a lexicographical sort of its
+	// package name.
 	sort.Slice(latestEntries, func(i, j int) bool {
 		return latestEntries[i].PackageName < latestEntries[j].PackageName
 	})
@@ -192,6 +198,8 @@ func (q Querier) GetBundleThatProvides(ctx context.Context, group, version, kind
 	for _, entry := range latestEntries {
 		pkg, ok := q.model[entry.PackageName]
 		if !ok {
+			// This should never happen because the latest entries were
+			// collected based on iterating over the packages in q.model.
 			continue
 		}
 		if entry.ChannelName == pkg.DefaultChannel.Name {
