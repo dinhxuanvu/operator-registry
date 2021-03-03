@@ -16,12 +16,20 @@ import (
 
 	"github.com/operator-framework/operator-registry/pkg/api"
 	health "github.com/operator-framework/operator-registry/pkg/api/grpc_health_v1"
+	"github.com/operator-framework/operator-registry/pkg/declcfg"
 	"github.com/operator-framework/operator-registry/pkg/lib/dns"
 	"github.com/operator-framework/operator-registry/pkg/lib/graceful"
 	"github.com/operator-framework/operator-registry/pkg/lib/log"
 	"github.com/operator-framework/operator-registry/pkg/lib/tmp"
+	"github.com/operator-framework/operator-registry/pkg/model"
+	"github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/operator-framework/operator-registry/pkg/server"
 	"github.com/operator-framework/operator-registry/pkg/sqlite"
+)
+
+const (
+	configsFlag  = "configs"
+	databaseFlag = "database"
 )
 
 func newRegistryServeCmd() *cobra.Command {
@@ -41,7 +49,10 @@ func newRegistryServeCmd() *cobra.Command {
 	}
 
 	rootCmd.Flags().Bool("debug", false, "enable debug logging")
-	rootCmd.Flags().StringP("database", "d", "bundles.db", "relative path to sqlite db")
+	rootCmd.Flags().StringP(databaseFlag, "d", "bundles.db", "relative path to sqlite db")
+	// TODO(joelanford): Is there a default configs folder, or will every index image need to specify the config
+	//   folder in the entrypoint?
+	rootCmd.Flags().StringP(configsFlag, "c", "", "path to declarative index configs")
 	rootCmd.Flags().StringP("port", "p", "50051", "port number to serve on")
 	rootCmd.Flags().StringP("termination-log", "t", "/dev/termination-log", "path to a container termination log file")
 	rootCmd.Flags().Bool("skip-migrate", false, "do  not attempt to migrate to the latest db revision when starting")
@@ -66,9 +77,8 @@ func serveFunc(cmd *cobra.Command, args []string) error {
 		logrus.WithError(err).Warn("unable to write default nsswitch config")
 	}
 
-	dbName, err := cmd.Flags().GetString("database")
-	if err != nil {
-		return err
+	if cmd.Flags().Changed(configsFlag) && cmd.Flags().Changed(databaseFlag) {
+		return fmt.Errorf("flags --%s and --%s are mutually exclusive", configsFlag, databaseFlag)
 	}
 
 	port, err := cmd.Flags().GetString("port")
@@ -76,34 +86,62 @@ func serveFunc(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	logger := logrus.WithFields(logrus.Fields{"database": dbName, "port": port})
+	logger := logrus.WithField("port", port)
 
-	// make a writable copy of the db for migrations
-	tmpdb, err := tmp.CopyTmpDB(dbName)
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmpdb)
+	var store registry.GRPCQuery
+	if cmd.Flags().Changed(configsFlag) {
+		configs, err := cmd.Flags().GetString(configsFlag)
+		if err != nil {
+			return err
+		}
+		logger = logger.WithField("configs", configs)
 
-	db, err := sqlite.Open(tmpdb)
-	if err != nil {
-		return err
-	}
+		cfg, err := declcfg.LoadDir(configs)
+		if err != nil {
+			return fmt.Errorf("could not load declarative configs: %v", err)
+		}
+		m, err := cfg.ConvertToModel()
+		if err != nil {
+			return fmt.Errorf("could not build index model from declarative config: %v", err)
+		}
 
-	// migrate to the latest version
-	if err := migrate(cmd, db); err != nil {
-		logger.WithError(err).Warnf("couldn't migrate db")
-	}
+		store = model.NewQuerier(m)
+	} else {
+		dbName, err := cmd.Flags().GetString(databaseFlag)
+		if err != nil {
+			return err
+		}
 
-	store := sqlite.NewSQLLiteQuerierFromDb(db)
+		logger = logger.WithField("database", dbName)
 
-	// sanity check that the db is available
-	tables, err := store.ListTables(context.TODO())
-	if err != nil {
-		logger.WithError(err).Warnf("couldn't list tables in db")
-	}
-	if len(tables) == 0 {
-		logger.Warn("no tables found in db")
+		// make a writable copy of the db for migrations
+		tmpdb, err := tmp.CopyTmpDB(dbName)
+		if err != nil {
+			return err
+		}
+		defer os.Remove(tmpdb)
+
+		db, err := sqlite.Open(tmpdb)
+		if err != nil {
+			return err
+		}
+
+		// migrate to the latest version
+		if err := migrate(cmd, db); err != nil {
+			logger.WithError(err).Warnf("couldn't migrate db")
+		}
+
+		dbStore := sqlite.NewSQLLiteQuerierFromDb(db)
+
+		// sanity check that the db is available
+		tables, err := dbStore.ListTables(context.TODO())
+		if err != nil {
+			logger.WithError(err).Warnf("couldn't list tables in db")
+		}
+		if len(tables) == 0 {
+			logger.Warn("no tables found in db")
+		}
+		store = dbStore
 	}
 
 	lis, err := net.Listen("tcp", ":"+port)

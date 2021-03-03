@@ -20,6 +20,8 @@ var (
 	// ErrRemovingDefaultChannelDuringDeprecation is an error that describes a bundle deprecation causing the deletion
 	// of the default channel
 	ErrRemovingDefaultChannelDuringDeprecation = errors.New("Bundle deprecation causing default channel removal")
+
+	ErrTODO = errors.New("TODO: figure out the right error to use for this")
 )
 
 // BundleImageAlreadyAddedErr is an error that describes a bundle is already added
