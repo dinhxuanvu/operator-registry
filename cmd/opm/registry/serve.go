@@ -3,12 +3,16 @@ package registry
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
+	"github.com/h2non/filetype"
+	"github.com/h2non/filetype/matchers"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
@@ -28,16 +32,18 @@ import (
 )
 
 const (
-	configsFlag  = "configs"
 	databaseFlag = "database"
+
+	modeSqlite  = "sqlite"
+	modeDeclCfg = "declcfg"
 )
 
 func newRegistryServeCmd() *cobra.Command {
 	rootCmd := &cobra.Command{
-		Use:   "serve",
-		Short: "serve an operator-registry database",
-		Long:  `serve an operator-registry database that is queriable using grpc`,
-
+		Use:   "serve <source_path>",
+		Short: "serve an operator-registry source",
+		Long:  `serve an operator-registry source that is queriable using grpc`,
+		Args:  cobra.MaximumNArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if debug, _ := cmd.Flags().GetBool("debug"); debug {
 				logrus.SetLevel(logrus.DebugLevel)
@@ -50,9 +56,6 @@ func newRegistryServeCmd() *cobra.Command {
 
 	rootCmd.Flags().Bool("debug", false, "enable debug logging")
 	rootCmd.Flags().StringP(databaseFlag, "d", "bundles.db", "relative path to sqlite db")
-	// TODO(joelanford): Is there a default configs folder, or will every index image need to specify the config
-	//   folder in the entrypoint?
-	rootCmd.Flags().StringP(configsFlag, "c", "", "path to declarative index configs")
 	rootCmd.Flags().StringP("port", "p", "50051", "port number to serve on")
 	rootCmd.Flags().StringP("termination-log", "t", "/dev/termination-log", "path to a container termination log file")
 	rootCmd.Flags().Bool("skip-migrate", false, "do  not attempt to migrate to the latest db revision when starting")
@@ -77,10 +80,6 @@ func serveFunc(cmd *cobra.Command, args []string) error {
 		logrus.WithError(err).Warn("unable to write default nsswitch config")
 	}
 
-	if cmd.Flags().Changed(configsFlag) && cmd.Flags().Changed(databaseFlag) {
-		return fmt.Errorf("flags --%s and --%s are mutually exclusive", configsFlag, databaseFlag)
-	}
-
 	port, err := cmd.Flags().GetString("port")
 	if err != nil {
 		return err
@@ -88,15 +87,28 @@ func serveFunc(cmd *cobra.Command, args []string) error {
 
 	logger := logrus.WithField("port", port)
 
-	var store registry.GRPCQuery
-	if cmd.Flags().Changed(configsFlag) {
-		configs, err := cmd.Flags().GetString(configsFlag)
-		if err != nil {
-			return err
-		}
-		logger = logger.WithField("configs", configs)
+	source, mode, err := detectRegistrySource(cmd, args)
+	if err != nil {
+		return err
+	}
 
-		cfg, err := declcfg.LoadDir(configs)
+	var store registry.GRPCQuery
+
+	switch mode {
+	case modeDeclCfg:
+		logger = logger.WithField("configs", source)
+
+		var (
+			cfg *declcfg.DeclarativeConfig
+			err error
+		)
+		if s, sErr := os.Stat(source); sErr != nil {
+			return err
+		} else if s.IsDir() {
+			cfg, err = declcfg.LoadDir(source)
+		} else {
+			cfg, err = declcfg.LoadFile(source)
+		}
 		if err != nil {
 			return fmt.Errorf("could not load declarative configs: %v", err)
 		}
@@ -104,18 +116,12 @@ func serveFunc(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("could not build index model from declarative config: %v", err)
 		}
-
 		store = model.NewQuerier(m)
-	} else {
-		dbName, err := cmd.Flags().GetString(databaseFlag)
-		if err != nil {
-			return err
-		}
-
-		logger = logger.WithField("database", dbName)
+	case modeSqlite:
+		logger = logger.WithField("database", source)
 
 		// make a writable copy of the db for migrations
-		tmpdb, err := tmp.CopyTmpDB(dbName)
+		tmpdb, err := tmp.CopyTmpDB(source)
 		if err != nil {
 			return err
 		}
@@ -142,6 +148,8 @@ func serveFunc(cmd *cobra.Command, args []string) error {
 			logger.Warn("no tables found in db")
 		}
 		store = dbStore
+	default:
+		return errors.New("failed to detect registry mode, expected sqlite datafile path or declarative config path")
 	}
 
 	lis, err := net.Listen("tcp", ":"+port)
@@ -179,6 +187,41 @@ func serveFunc(cmd *cobra.Command, args []string) error {
 	}, func() {
 		s.GracefulStop()
 	})
+}
+
+func detectRegistrySource(cmd *cobra.Command, args []string) (string, string, error) {
+	if len(args) > 0 && cmd.Flag(databaseFlag).Changed {
+		return "", "", errors.New("ambiguous usage: positional argument and --database flag are mutually exclusive")
+	}
+	if len(args) == 0 {
+		// TODO(joelanford): Output a better deprecation warning here (instead of cobra's flag deprecation)?
+		logrus.Warnf("flag --database is deprecated, use a positional argument to define the registry source path")
+		dbPath, err := cmd.Flags().GetString(databaseFlag)
+		if err != nil {
+			return "", "", err
+		}
+		return dbPath, modeSqlite, nil
+	}
+
+	source := args[0]
+	sourceInfo, err := os.Stat(source)
+	if err != nil {
+		return "", "", err
+	}
+	if sourceInfo.IsDir() || filepath.Ext(source) == ".json" {
+		return source, modeDeclCfg, nil
+	}
+
+	t, err := filetype.MatchFile(source)
+	if err != nil {
+		return "", "", err
+	}
+	switch t {
+	case matchers.TypeSqlite:
+		return source, modeSqlite, nil
+	}
+
+	return "", "", fmt.Errorf("could not detect registry source mode from file %q", source)
 }
 
 func migrate(cmd *cobra.Command, db *sql.DB) error {
