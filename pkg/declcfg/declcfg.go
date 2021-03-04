@@ -83,9 +83,7 @@ func (cfg DeclarativeConfig) ToModel() (model.Model, error) {
 	if err := populateModelChannels(pkgs, cfg.Bundles); err != nil {
 		return nil, fmt.Errorf("populate channels: %v", err)
 	}
-	if err := generateChannelUpgradeGraphs(pkgs); err != nil {
-		return nil, fmt.Errorf("generate upgrade graphs: %v", err)
-	}
+	populateChannelHeads(pkgs)
 	if err := pkgs.Validate(); err != nil {
 		return nil, err
 	}
@@ -157,49 +155,23 @@ func populateModelChannels(pkgs model.Model, dBundles []Bundle) error {
 	return nil
 }
 
-func generateChannelUpgradeGraphs(pkgs model.Model) error {
+func populateChannelHeads(pkgs model.Model) {
 	for _, pkg := range pkgs {
 		for _, ch := range pkg.Channels {
-			chBundles, err := sortBundles(ch.Bundles)
-			if err != nil {
-				return fmt.Errorf("sort package %q, channel %q: %v", pkg.Name, ch.Name, err)
-			}
-			if len(chBundles) > 0 {
-				ch.Head = chBundles[len(chBundles)-1]
-			}
+			ch.Head = getChannelHead(ch.Bundles)
+		}
+	}
+}
+
+func getChannelHead(in map[string]*model.Bundle) *model.Bundle {
+	incoming := map[string]int{}
+	for _, b := range in {
+		incoming[b.Replaces] += 1
+	}
+	for _, b := range in {
+		if _, ok := incoming[b.Name]; !ok {
+			return b
 		}
 	}
 	return nil
-}
-
-func sortBundles(in map[string]*model.Bundle) ([]*model.Bundle, error) {
-	// Find the tail (i.e. the bundle that doesn't replace any others)
-	var out []*model.Bundle
-	for _, b := range in {
-		if b.Replaces == "" {
-			out = append(out, b)
-		}
-	}
-	if len(out) == 0 {
-		return nil, fmt.Errorf("could not find channel tail in upgrade graph")
-	}
-	if len(out) > 1 {
-		return nil, fmt.Errorf("non-linear upgrade graph: multiple tail bundles found")
-	}
-
-	// Build up from the tail
-	for len(out) != len(in) {
-		head := out[len(out)-1]
-		var next *model.Bundle
-		for _, b := range in {
-			if b.Replaces == head.Name {
-				next = b
-			}
-		}
-		if next == nil {
-			return nil, fmt.Errorf("discontinuous or non-linear upgrade graph")
-		}
-		out = append(out, next)
-	}
-	return out, nil
 }
