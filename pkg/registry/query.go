@@ -1,4 +1,4 @@
-package model
+package registry
 
 import (
 	"context"
@@ -6,64 +6,64 @@ import (
 	"sort"
 
 	"github.com/operator-framework/operator-registry/pkg/api"
-	"github.com/operator-framework/operator-registry/pkg/registry"
+	"github.com/operator-framework/operator-registry/pkg/model"
 )
 
 type Querier struct {
-	model Model
+	pkgs model.Model
 }
 
-var _ registry.GRPCQuery = &Querier{}
+var _ GRPCQuery = &Querier{}
 
-func NewQuerier(packages Model) *Querier {
+func NewQuerier(packages model.Model) *Querier {
 	return &Querier{
 		packages,
 	}
 }
 
-func (q Querier) ListPackages(ctx context.Context) ([]string, error) {
+func (q Querier) ListPackages(_ context.Context) ([]string, error) {
 	var packages []string
-	for pkgName := range q.model {
+	for pkgName := range q.pkgs {
 		packages = append(packages, pkgName)
 	}
 	return packages, nil
 }
 
-func (q Querier) ListBundles(ctx context.Context) ([]*api.Bundle, error) {
+func (q Querier) ListBundles(_ context.Context) ([]*api.Bundle, error) {
 	var bundles []*api.Bundle
 
-	for _, pkg := range q.model {
+	for _, pkg := range q.pkgs {
 		for _, ch := range pkg.Channels {
 			for _, b := range ch.Bundles {
-				bundles = append(bundles, b.ConvertToAPI())
+				bundles = append(bundles, api.BundleFromModel(*b))
 			}
 		}
 	}
 	return bundles, nil
 }
 
-func (q Querier) GetPackage(ctx context.Context, name string) (*registry.PackageManifest, error) {
-	pkg, ok := q.model[name]
+func (q Querier) GetPackage(_ context.Context, name string) (*PackageManifest, error) {
+	pkg, ok := q.pkgs[name]
 	if !ok {
 		return nil, fmt.Errorf("package %q not found", name)
 	}
 
-	var channels []registry.PackageChannel
+	var channels []PackageChannel
 	for _, ch := range pkg.Channels {
-		channels = append(channels, registry.PackageChannel{
+		channels = append(channels, PackageChannel{
 			Name:           ch.Name,
 			CurrentCSVName: ch.Head.Name,
 		})
 	}
-	return &registry.PackageManifest{
+	return &PackageManifest{
 		PackageName:        pkg.Name,
 		Channels:           channels,
 		DefaultChannelName: pkg.DefaultChannel.Name,
 	}, nil
 }
 
-func (q Querier) GetBundle(ctx context.Context, pkgName, channelName, csvName string) (*api.Bundle, error) {
-	pkg, ok := q.model[pkgName]
+func (q Querier) GetBundle(_ context.Context, pkgName, channelName, csvName string) (*api.Bundle, error) {
+	pkg, ok := q.pkgs[pkgName]
 	if !ok {
 		return nil, fmt.Errorf("package %q not found", pkgName)
 	}
@@ -75,11 +75,11 @@ func (q Querier) GetBundle(ctx context.Context, pkgName, channelName, csvName st
 	if !ok {
 		return nil, fmt.Errorf("package %q, channel %q, bundle %q not found", pkgName, channelName, csvName)
 	}
-	return b.ConvertToAPI(), nil
+	return api.BundleFromModel(*b), nil
 }
 
-func (q Querier) GetBundleForChannel(ctx context.Context, pkgName string, channelName string) (*api.Bundle, error) {
-	pkg, ok := q.model[pkgName]
+func (q Querier) GetBundleForChannel(_ context.Context, pkgName string, channelName string) (*api.Bundle, error) {
+	pkg, ok := q.pkgs[pkgName]
 	if !ok {
 		return nil, fmt.Errorf("package %q not found", pkgName)
 	}
@@ -87,17 +87,17 @@ func (q Querier) GetBundleForChannel(ctx context.Context, pkgName string, channe
 	if !ok {
 		return nil, fmt.Errorf("package %q, channel %q not found", pkgName, channelName)
 	}
-	return ch.Head.ConvertToAPI(), nil
+	return api.BundleFromModel(*ch.Head), nil
 }
 
-func (q Querier) GetChannelEntriesThatReplace(ctx context.Context, name string) ([]*registry.ChannelEntry, error) {
-	var entries []*registry.ChannelEntry
+func (q Querier) GetChannelEntriesThatReplace(_ context.Context, name string) ([]*ChannelEntry, error) {
+	var entries []*ChannelEntry
 
-	for _, pkg := range q.model {
+	for _, pkg := range q.pkgs {
 		for _, ch := range pkg.Channels {
 			for _, b := range ch.Bundles {
 				if b.Replaces == name {
-					entries = append(entries, &registry.ChannelEntry{
+					entries = append(entries, &ChannelEntry{
 						PackageName: b.Package.Name,
 						ChannelName: b.Channel.Name,
 						BundleName:  b.Name,
@@ -113,8 +113,8 @@ func (q Querier) GetChannelEntriesThatReplace(ctx context.Context, name string) 
 	return entries, nil
 }
 
-func (q Querier) GetBundleThatReplaces(ctx context.Context, name, pkgName, channelName string) (*api.Bundle, error) {
-	pkg, ok := q.model[pkgName]
+func (q Querier) GetBundleThatReplaces(_ context.Context, name, pkgName, channelName string) (*api.Bundle, error) {
+	pkg, ok := q.pkgs[pkgName]
 	if !ok {
 		return nil, fmt.Errorf("package %s not found", pkgName)
 	}
@@ -124,20 +124,20 @@ func (q Querier) GetBundleThatReplaces(ctx context.Context, name, pkgName, chann
 	}
 	for _, b := range ch.Bundles {
 		if b.Replaces == name {
-			return b.ConvertToAPI(), nil
+			return api.BundleFromModel(*b), nil
 		}
 	}
 	return nil, fmt.Errorf("no entry found for package %q, channel %q", pkgName, channelName)
 }
 
-func (q Querier) GetChannelEntriesThatProvide(ctx context.Context, group, version, kind string) ([]*registry.ChannelEntry, error) {
-	var entries []*registry.ChannelEntry
+func (q Querier) GetChannelEntriesThatProvide(_ context.Context, group, version, kind string) ([]*ChannelEntry, error) {
+	var entries []*ChannelEntry
 
-	for _, pkg := range q.model {
+	for _, pkg := range q.pkgs {
 		for _, ch := range pkg.Channels {
 			for _, b := range ch.Bundles {
 				if b.Provides(group, version, kind) {
-					entries = append(entries, &registry.ChannelEntry{
+					entries = append(entries, &ChannelEntry{
 						PackageName: b.Package.Name,
 						ChannelName: b.Channel.Name,
 						BundleName:  b.Name,
@@ -153,15 +153,15 @@ func (q Querier) GetChannelEntriesThatProvide(ctx context.Context, group, versio
 	return entries, nil
 }
 
-func (q Querier) GetLatestChannelEntriesThatProvide(ctx context.Context, group, version, kind string) ([]*registry.ChannelEntry, error) {
-	var entries []*registry.ChannelEntry
+func (q Querier) GetLatestChannelEntriesThatProvide(_ context.Context, group, version, kind string) ([]*ChannelEntry, error) {
+	var entries []*ChannelEntry
 
-	for _, pkg := range q.model {
+	for _, pkg := range q.pkgs {
 		for _, ch := range pkg.Channels {
 			b := ch.Head
 			for b != nil {
 				if b.Provides(group, version, kind) {
-					entries = append(entries, &registry.ChannelEntry{
+					entries = append(entries, &ChannelEntry{
 						PackageName: b.Package.Name,
 						ChannelName: b.Channel.Name,
 						BundleName:  b.Name,
@@ -196,10 +196,10 @@ func (q Querier) GetBundleThatProvides(ctx context.Context, group, version, kind
 	})
 
 	for _, entry := range latestEntries {
-		pkg, ok := q.model[entry.PackageName]
+		pkg, ok := q.pkgs[entry.PackageName]
 		if !ok {
 			// This should never happen because the latest entries were
-			// collected based on iterating over the packages in q.model.
+			// collected based on iterating over the packages in q.pkgs.
 			continue
 		}
 		if entry.ChannelName == pkg.DefaultChannel.Name {

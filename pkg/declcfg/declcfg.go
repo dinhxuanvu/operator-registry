@@ -78,20 +78,17 @@ func LoadFile(configFile string) (*DeclarativeConfig, error) {
 	return cfg, nil
 }
 
-func (cfg DeclarativeConfig) ConvertToModel() (model.Model, error) {
-	// Step 1: create packages and populate channel metadata (without bundle info)
+func (cfg DeclarativeConfig) ToModel() (model.Model, error) {
 	pkgs := initializeModelPackages(cfg.Packages)
-
-	// Step 2: add bundles to channels
 	if err := populateModelChannels(pkgs, cfg.Bundles); err != nil {
 		return nil, fmt.Errorf("populate channels: %v", err)
 	}
-
-	// Step 3: Generate upgrade graph and determine channel heads
 	if err := generateChannelUpgradeGraphs(pkgs); err != nil {
 		return nil, fmt.Errorf("generate upgrade graphs: %v", err)
 	}
-
+	if err := pkgs.Validate(); err != nil {
+		return nil, err
+	}
 	return pkgs, nil
 }
 
@@ -163,9 +160,6 @@ func populateModelChannels(pkgs model.Model, dBundles []Bundle) error {
 func generateChannelUpgradeGraphs(pkgs model.Model) error {
 	for _, pkg := range pkgs {
 		for _, ch := range pkg.Channels {
-			if err := verifyReplaces(*ch); err != nil {
-				return err
-			}
 			chBundles, err := sortBundles(ch.Bundles)
 			if err != nil {
 				return fmt.Errorf("sort package %q, channel %q: %v", pkg.Name, ch.Name, err)
@@ -179,7 +173,7 @@ func generateChannelUpgradeGraphs(pkgs model.Model) error {
 }
 
 func sortBundles(in map[string]*model.Bundle) ([]*model.Bundle, error) {
-	// 1. Find the tail (i.e. the bundle that doesn't replace any others)
+	// Find the tail (i.e. the bundle that doesn't replace any others)
 	var out []*model.Bundle
 	for _, b := range in {
 		if b.Replaces == "" {
@@ -193,7 +187,7 @@ func sortBundles(in map[string]*model.Bundle) ([]*model.Bundle, error) {
 		return nil, fmt.Errorf("non-linear upgrade graph: multiple tail bundles found")
 	}
 
-	// 2. Build up from the tail
+	// Build up from the tail
 	for len(out) != len(in) {
 		head := out[len(out)-1]
 		var next *model.Bundle
@@ -208,19 +202,4 @@ func sortBundles(in map[string]*model.Bundle) ([]*model.Bundle, error) {
 		out = append(out, next)
 	}
 	return out, nil
-}
-
-func verifyReplaces(ch model.Channel) error {
-	replaces := map[string]string{}
-	for _, b := range ch.Bundles {
-		if b.Replaces != "" {
-			replaces[b.Name] = b.Replaces
-		}
-	}
-	for name, r := range replaces {
-		if _, ok := ch.Bundles[r]; !ok {
-			return fmt.Errorf("replaces %q not found for package %q, channel %q, bundle %q", r, ch.Package.Name, ch.Name, name)
-		}
-	}
-	return nil
 }

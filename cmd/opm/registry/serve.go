@@ -25,7 +25,6 @@ import (
 	"github.com/operator-framework/operator-registry/pkg/lib/graceful"
 	"github.com/operator-framework/operator-registry/pkg/lib/log"
 	"github.com/operator-framework/operator-registry/pkg/lib/tmp"
-	"github.com/operator-framework/operator-registry/pkg/model"
 	"github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/operator-framework/operator-registry/pkg/server"
 	"github.com/operator-framework/operator-registry/pkg/sqlite"
@@ -112,11 +111,11 @@ func serveFunc(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("could not load declarative configs: %v", err)
 		}
-		m, err := cfg.ConvertToModel()
+		m, err := cfg.ToModel()
 		if err != nil {
 			return fmt.Errorf("could not build index model from declarative config: %v", err)
 		}
-		store = model.NewQuerier(m)
+		store = registry.NewQuerier(m)
 	case modeSqlite:
 		logger = logger.WithField("database", source)
 
