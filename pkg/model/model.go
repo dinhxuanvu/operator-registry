@@ -101,7 +101,12 @@ type Channel struct {
 func (c Channel) Head() (*Bundle, error) {
 	incoming := map[string]int{}
 	for _, b := range c.Bundles {
-		incoming[b.Replaces] += 1
+		if b.Replaces != "" {
+			incoming[b.Replaces] += 1
+		}
+		for _, skip := range b.Skips {
+			incoming[skip] += 1
+		}
 	}
 	var heads []*Bundle
 	for _, b := range c.Bundles {
@@ -262,15 +267,27 @@ func (gvk GroupVersionKind) Validate() error {
 	if errs := validation.IsDNS1123Subdomain(gvk.Group); len(errs) != 0 {
 		return fmt.Errorf("invalid group %q: %s", gvk.Group, strings.Join(errs, ", "))
 	}
-	if !versionRegex.MatchString(gvk.Version) {
-		return fmt.Errorf("invalid version %q: must match %s", gvk.Version, versionPattern)
+
+	// TODO(joelanford): I found an example where this fails validation in an existing index,
+	//   so commenting the regex check out for now, and just checking that it is set. Is the
+	//   regex-based test too strict?
+	//   See: https://github.com/operator-framework/community-operators/blob/ae7a82969500555bab91fc7282ebd3de2e16c8ef/community-operators/percona-server-mongodb-operator/1.4.0/percona-server-mongodb-operator.v1.4.0.clusterserviceversion.yaml#L167
+	//if !versionRegex.MatchString(gvk.Version) {
+	//	return fmt.Errorf("invalid version %q: must match %s", gvk.Version, versionPattern)
+	//}
+	if gvk.Version == "" {
+		return fmt.Errorf("invalid version %q: must not be empty", gvk.Version)
 	}
+
 	if errs := validation.IsDNS1035Label(strings.ToLower(gvk.Kind)); len(errs) != 0 {
 		return fmt.Errorf("invalid kind %q: %s", gvk.Kind, strings.Join(errs, ", "))
 	}
-	if string(gvk.Kind[0]) == strings.ToLower(string(gvk.Kind[0])) {
-		return fmt.Errorf("invalid kind %q: must start with an uppercase character", gvk.Kind)
-	}
+	// TODO(joelanford): I found an example where this fails validation in an existing index,
+	//   so commenting the uppercase letter check out for now. Seems like something that we
+	//   should catch and prevent though.
+	//if string(gvk.Kind[0]) == strings.ToLower(string(gvk.Kind[0])) {
+	//	return fmt.Errorf("invalid kind %q: must start with an uppercase character", gvk.Kind)
+	//}
 	return nil
 }
 
