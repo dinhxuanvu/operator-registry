@@ -98,6 +98,9 @@ type Channel struct {
 	Bundles map[string]*Bundle
 }
 
+// TODO(joelanford): This function determines the channel head by finding the bundle that has 0
+//   incoming edges, based on replaces, skips, and skipRange. It also expects to find exactly one such bundle.
+//   Is this the correct algorithm?
 func (c Channel) Head() (*Bundle, error) {
 	incoming := map[string]int{}
 	for _, b := range c.Bundles {
@@ -106,6 +109,24 @@ func (c Channel) Head() (*Bundle, error) {
 		}
 		for _, skip := range b.Skips {
 			incoming[skip] += 1
+		}
+		if b.SkipRange != "" {
+			skipRange, err := semver.ParseRange(b.SkipRange)
+			if err != nil {
+				return nil, fmt.Errorf("invalid skip range %q for bundle %q: %v", b.SkipRange, b.Name, err)
+			}
+			for _, skipCandidate := range c.Bundles {
+				if skipCandidate == b {
+					continue
+				}
+				version, err := semver.Parse(skipCandidate.Version)
+				if err != nil {
+					return nil, fmt.Errorf("invalid version %q for bundle %q: %v", skipCandidate.SkipRange, skipCandidate.Name, err)
+				}
+				if skipRange(version) {
+					incoming[skipCandidate.Name] += 1
+				}
+			}
 		}
 	}
 	var heads []*Bundle
@@ -202,9 +223,18 @@ func (b *Bundle) Validate() error {
 			return fmt.Errorf("invalid provided api[%d]: %v", i, err)
 		}
 	}
+	version, err := semver.Parse(b.Version)
+	if err != nil {
+		return fmt.Errorf("invalid version %q: %v", b.Version, err)
+	}
+
 	if b.SkipRange != "" {
-		if _, err := semver.ParseRange(b.SkipRange); err != nil {
+		skipRange, err := semver.ParseRange(b.SkipRange)
+		if err != nil {
 			return fmt.Errorf("invalid skipRange %q: %v", b.SkipRange, err)
+		}
+		if skipRange(version) {
+			return fmt.Errorf("skipRange %q includes bundle's own version %q", b.SkipRange, b.Version)
 		}
 	}
 	// TODO(joelanford): What is the expected presence of skipped CSVs?
@@ -213,9 +243,7 @@ func (b *Bundle) Validate() error {
 	}
 	// TODO(joelanford): Validate image string as container reference?
 	_ = b.Image
-	if _, err := semver.Parse(b.Version); err != nil {
-		return fmt.Errorf("invalid version %q: %v", b.Version, err)
-	}
+
 	for i, reqPkg := range b.RequiredPackages {
 		if err := reqPkg.Validate(); err != nil {
 			return fmt.Errorf("invalid required package[%d]: %v", i, err)
