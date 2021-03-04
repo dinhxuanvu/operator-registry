@@ -50,9 +50,13 @@ func (q Querier) GetPackage(_ context.Context, name string) (*PackageManifest, e
 
 	var channels []PackageChannel
 	for _, ch := range pkg.Channels {
+		head, err := ch.Head()
+		if err != nil {
+			return nil, fmt.Errorf("package %q, channel %q has invalid head: %v", name, ch.Name, err)
+		}
 		channels = append(channels, PackageChannel{
 			Name:           ch.Name,
-			CurrentCSVName: ch.Head.Name,
+			CurrentCSVName: head.Name,
 		})
 	}
 	return &PackageManifest{
@@ -87,7 +91,11 @@ func (q Querier) GetBundleForChannel(_ context.Context, pkgName string, channelN
 	if !ok {
 		return nil, fmt.Errorf("package %q, channel %q not found", pkgName, channelName)
 	}
-	return api.BundleFromModel(*ch.Head), nil
+	head, err := ch.Head()
+	if err != nil {
+		return nil, fmt.Errorf("package %q, channel %q has invalid head: %v", pkgName, channelName, err)
+	}
+	return api.BundleFromModel(*head), nil
 }
 
 func (q Querier) GetChannelEntriesThatReplace(_ context.Context, name string) ([]*ChannelEntry, error) {
@@ -158,7 +166,10 @@ func (q Querier) GetLatestChannelEntriesThatProvide(_ context.Context, group, ve
 
 	for _, pkg := range q.pkgs {
 		for _, ch := range pkg.Channels {
-			b := ch.Head
+			b, err := ch.Head()
+			if err != nil {
+				return nil, fmt.Errorf("package %q, channel %q has invalid head: %v", pkg.Name, ch.Name, err)
+			}
 			for b != nil {
 				if b.Provides(group, version, kind) {
 					entries = append(entries, &ChannelEntry{

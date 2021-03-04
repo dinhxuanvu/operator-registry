@@ -83,7 +83,6 @@ func (cfg DeclarativeConfig) ToModel() (model.Model, error) {
 	if err := populateModelChannels(pkgs, cfg.Bundles); err != nil {
 		return nil, fmt.Errorf("populate channels: %v", err)
 	}
-	populateChannelHeads(pkgs)
 	if err := pkgs.Validate(); err != nil {
 		return nil, err
 	}
@@ -150,27 +149,6 @@ func populateModelChannels(pkgs model.Model, dBundles []Bundle) error {
 				Properties:       props,
 				RequiredPackages: dBundle.RequiredPackages(),
 			}
-		}
-	}
-	return nil
-}
-
-func populateChannelHeads(pkgs model.Model) {
-	for _, pkg := range pkgs {
-		for _, ch := range pkg.Channels {
-			ch.Head = getChannelHead(ch.Bundles)
-		}
-	}
-}
-
-func getChannelHead(in map[string]*model.Bundle) *model.Bundle {
-	incoming := map[string]int{}
-	for _, b := range in {
-		incoming[b.Replaces] += 1
-	}
-	for _, b := range in {
-		if _, ok := incoming[b.Name]; !ok {
-			return b
 		}
 	}
 	return nil

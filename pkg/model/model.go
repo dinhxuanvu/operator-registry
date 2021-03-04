@@ -95,8 +95,31 @@ func (i *Icon) Validate() error {
 type Channel struct {
 	Package *Package
 	Name    string
-	Head    *Bundle
 	Bundles map[string]*Bundle
+}
+
+func (c Channel) Head() (*Bundle, error) {
+	incoming := map[string]int{}
+	for _, b := range c.Bundles {
+		incoming[b.Replaces] += 1
+	}
+	var heads []*Bundle
+	for _, b := range c.Bundles {
+		if _, ok := incoming[b.Name]; !ok {
+			heads = append(heads, b)
+		}
+	}
+	if len(heads) == 0 {
+		return nil, fmt.Errorf("no channel head found in graph")
+	}
+	if len(heads) > 1 {
+		var headNames []string
+		for _, head := range heads {
+			headNames = append(headNames, head.Name)
+		}
+		return nil, fmt.Errorf("multiple channel heads found in graph: %s", strings.Join(headNames, ", "))
+	}
+	return heads[0], nil
 }
 
 func (c *Channel) Validate() error {
@@ -108,17 +131,13 @@ func (c *Channel) Validate() error {
 		return errors.New("package must be set")
 	}
 
-	if c.Head == nil {
-		return fmt.Errorf("channel head must be set")
+	if _, err := c.Head(); err != nil {
+		return err
 	}
 
-	foundHead := false
 	for name, b := range c.Bundles {
 		if err := b.Validate(); err != nil {
 			return fmt.Errorf("invalid bundle %q: %v", b.Name, err)
-		}
-		if b == c.Head {
-			foundHead = true
 		}
 		if b.Channel != c {
 			return fmt.Errorf("bundle %q not correctly linked to parent channel", b.Name)
@@ -126,10 +145,6 @@ func (c *Channel) Validate() error {
 		if name != b.Name {
 			return fmt.Errorf("bundle key %q does not match bundle name %q", name, b.Name)
 		}
-	}
-
-	if !foundHead {
-		return fmt.Errorf("channel head %q not found in bundles list", c.Head.Name)
 	}
 	return nil
 }
