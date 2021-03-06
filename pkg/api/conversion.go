@@ -1,82 +1,91 @@
 package api
 
 import (
-	"fmt"
-
 	"github.com/operator-framework/operator-registry/pkg/model"
 )
 
 const (
-	dependencyTypeGVK     = "olm.gvk"
-	dependencyTypePackage = "olm.package"
+	apiPropertyTypePackage = "olm.package"
+	apiPropertyTypeGVK     = "olm.gvk"
+
+	apiDependencyTypePackage = "olm.package"
+	apiDependencyTypeGVK     = "olm.gvk"
+
+	propertyTypePackageProvided = "olm.package.provided"
+	propertyTypePackageRequired = "olm.package.required"
+	propertyTypeGVKProvided     = "olm.gvk.provided"
+	propertyTypeGVKRequired     = "olm.gvk.required"
 )
 
-func BundleFromModel(b model.Bundle) *Bundle {
+func ConvertModelBundleToAPIBundle(b model.Bundle) *Bundle {
 	return &Bundle{
 		CsvName:      b.Name,
 		PackageName:  b.Package.Name,
 		ChannelName:  b.Channel.Name,
 		BundlePath:   b.Image,
-		ProvidedApis: gvksFromModel(b.ProvidedAPIs),
-		RequiredApis: gvksFromModel(b.RequiredAPIs),
+		ProvidedApis: convertModelGVKsToAPIGVKs(b.ProvidedAPIs),
+		RequiredApis: convertModelGVKsToAPIGVKs(b.RequiredAPIs),
 		Version:      b.Version,
 		SkipRange:    b.SkipRange,
-		Dependencies: dependenciesFromModel(b),
-		Properties:   propertiesFromModel(b),
+		Dependencies: convertModelPropertiesToAPIDependencies(b.Properties),
+		Properties:   convertModelPropertiesToAPIProperties(b.Properties),
 		Replaces:     b.Replaces,
 		Skips:        b.Skips,
 	}
 }
 
-func gvksFromModel(gvks []model.GroupVersionKind) []*GroupVersionKind {
+func convertModelGVKsToAPIGVKs(gvks []model.GroupVersionKind) []*GroupVersionKind {
 	var out []*GroupVersionKind
 	for _, gvk := range gvks {
-		out = append(out, gvkFromModel(gvk))
+		out = append(out, &GroupVersionKind{
+			Group:   gvk.Group,
+			Version: gvk.Version,
+			Kind:    gvk.Kind,
+		})
 	}
 	return out
 }
 
-func gvkFromModel(gvk model.GroupVersionKind) *GroupVersionKind {
-	return &GroupVersionKind{
-		Group:   gvk.Group,
-		Version: gvk.Version,
-		Kind:    gvk.Kind,
-		Plural:  gvk.Plural,
+func convertModelPropertiesToAPIProperties(props []model.Property) []*Property {
+	var out []*Property
+	for _, prop := range props {
+		switch prop.Type {
+		case propertyTypeGVKProvided:
+			out = append(out, &Property{
+				Type:  apiPropertyTypeGVK,
+				Value: string(prop.Value),
+			})
+		case propertyTypePackageProvided:
+			out = append(out, &Property{
+				Type:  apiPropertyTypePackage,
+				Value: string(prop.Value),
+			})
+		default:
+			out = append(out, &Property{
+				Type:  prop.Type,
+				Value: string(prop.Value),
+			})
+		}
+
 	}
+	return out
 }
 
-func dependencyFromModelPkgReq(pkgReq model.PackageRequirement) *Dependency {
-	return &Dependency{
-		Type:  dependencyTypePackage,
-		Value: fmt.Sprintf(`{"packageName":%q,"version":%q}`, pkgReq.PackageName, pkgReq.Version),
+func convertModelPropertiesToAPIDependencies(props []model.Property) []*Dependency {
+	var out []*Dependency
+	for _, prop := range props {
+		switch prop.Type {
+		case propertyTypeGVKRequired:
+			out = append(out, &Dependency{
+				Type:  apiDependencyTypeGVK,
+				Value: string(prop.Value),
+			})
+		case propertyTypePackageRequired:
+			out = append(out, &Dependency{
+				Type:  apiDependencyTypePackage,
+				Value: string(prop.Value),
+			})
+		}
 	}
-}
-
-func dependencyFromModelGVK(gvk model.GroupVersionKind) *Dependency {
-	return &Dependency{
-		Type:  dependencyTypeGVK,
-		Value: fmt.Sprintf(`{"group":%q,"version":%q,"kind":%q}`, gvk.Group, gvk.Version, gvk.Kind),
-	}
-}
-
-func dependenciesFromModel(b model.Bundle) []*Dependency {
-	var deps []*Dependency
-	for _, pkgReq := range b.RequiredPackages {
-		deps = append(deps, dependencyFromModelPkgReq(pkgReq))
-	}
-	for _, papi := range b.RequiredAPIs {
-		deps = append(deps, dependencyFromModelGVK(papi))
-	}
-	return deps
-}
-
-func propertiesFromModel(b model.Bundle) []*Property {
-	var props []*Property
-	for _, prop := range b.Properties {
-		props = append(props, &Property{
-			Type:  prop.Type,
-			Value: prop.Value,
-		})
-	}
-	return props
+	return out
 }

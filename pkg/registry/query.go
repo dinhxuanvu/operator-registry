@@ -35,7 +35,7 @@ func (q Querier) ListBundles(_ context.Context) ([]*api.Bundle, error) {
 	for _, pkg := range q.pkgs {
 		for _, ch := range pkg.Channels {
 			for _, b := range ch.Bundles {
-				bundles = append(bundles, api.BundleFromModel(*b))
+				bundles = append(bundles, api.ConvertModelBundleToAPIBundle(*b))
 			}
 		}
 	}
@@ -79,7 +79,7 @@ func (q Querier) GetBundle(_ context.Context, pkgName, channelName, csvName stri
 	if !ok {
 		return nil, fmt.Errorf("package %q, channel %q, bundle %q not found", pkgName, channelName, csvName)
 	}
-	return api.BundleFromModel(*b), nil
+	return api.ConvertModelBundleToAPIBundle(*b), nil
 }
 
 func (q Querier) GetBundleForChannel(_ context.Context, pkgName string, channelName string) (*api.Bundle, error) {
@@ -95,7 +95,7 @@ func (q Querier) GetBundleForChannel(_ context.Context, pkgName string, channelN
 	if err != nil {
 		return nil, fmt.Errorf("package %q, channel %q has invalid head: %v", pkgName, channelName, err)
 	}
-	return api.BundleFromModel(*head), nil
+	return api.ConvertModelBundleToAPIBundle(*head), nil
 }
 
 func (q Querier) GetChannelEntriesThatReplace(_ context.Context, name string) ([]*ChannelEntry, error) {
@@ -121,6 +121,7 @@ func (q Querier) GetChannelEntriesThatReplace(_ context.Context, name string) ([
 	return entries, nil
 }
 
+// TODO(joelanford): What if multiple bundles replace this one?
 func (q Querier) GetBundleThatReplaces(_ context.Context, name, pkgName, channelName string) (*api.Bundle, error) {
 	pkg, ok := q.pkgs[pkgName]
 	if !ok {
@@ -132,7 +133,7 @@ func (q Querier) GetBundleThatReplaces(_ context.Context, name, pkgName, channel
 	}
 	for _, b := range ch.Bundles {
 		if b.Replaces == name {
-			return api.BundleFromModel(*b), nil
+			return api.ConvertModelBundleToAPIBundle(*b), nil
 		}
 	}
 	return nil, fmt.Errorf("no entry found for package %q, channel %q", pkgName, channelName)
@@ -144,7 +145,7 @@ func (q Querier) GetChannelEntriesThatProvide(_ context.Context, group, version,
 	for _, pkg := range q.pkgs {
 		for _, ch := range pkg.Channels {
 			for _, b := range ch.Bundles {
-				if b.Provides(group, version, kind) {
+				if b.Provides(model.GroupVersionKind{Group: group, Version: version, Kind: kind}) {
 					entries = append(entries, &ChannelEntry{
 						PackageName: b.Package.Name,
 						ChannelName: b.Channel.Name,
@@ -177,7 +178,8 @@ func (q Querier) GetLatestChannelEntriesThatProvide(_ context.Context, group, ve
 			if err != nil {
 				return nil, fmt.Errorf("package %q, channel %q has invalid head: %v", pkg.Name, ch.Name, err)
 			}
-			if b.Provides(group, version, kind) {
+
+			if b.Provides(model.GroupVersionKind{Group: group, Version: version, Kind: kind}) {
 				entries = append(entries, &ChannelEntry{
 					PackageName: b.Package.Name,
 					ChannelName: b.Channel.Name,

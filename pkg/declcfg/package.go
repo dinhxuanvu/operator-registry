@@ -1,15 +1,15 @@
 package declcfg
 
-type Package struct {
+type pkg struct {
 	Schema         string   `json:"schema"`
 	Name           string   `json:"name"`
 	DefaultChannel string   `json:"defaultChannel"`
-	Icon           *Icon    `json:"icon,omitempty"`
+	Icon           *icon    `json:"icon,omitempty"`
 	Channels       []string `json:"channels"`
 	Description    string   `json:"description,omitempty"`
 }
 
-type Icon struct {
+type icon struct {
 	Base64Data []byte `json:"base64data"`
 	MediaType  string `json:"mediatype"`
 }

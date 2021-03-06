@@ -111,7 +111,7 @@ func serveFunc(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("could not load declarative configs: %v", err)
 		}
-		m, err := cfg.ToModel()
+		m, err := declcfg.ConvertToModel(cfg)
 		if err != nil {
 			return fmt.Errorf("could not build index model from declarative config: %v", err)
 		}

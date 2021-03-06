@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -176,18 +177,22 @@ func (c *Channel) Validate() error {
 }
 
 type Bundle struct {
-	Package          *Package
-	Channel          *Channel
-	Name             string
-	Version          string
-	Image            string
-	Replaces         string
-	Skips            []string
-	SkipRange        string
+	Package    *Package
+	Channel    *Channel
+	Name       string
+	Version    string
+	Image      string
+	Replaces   string
+	Skips      []string
+	SkipRange  string
+	Properties []Property
+
+	// Many clients will be interested in these values, so
+	// rather than make each client traverse and parse the underlying
+	// properties, let's centralize them in the model.
 	ProvidedAPIs     []GroupVersionKind
 	RequiredAPIs     []GroupVersionKind
-	Properties       []Property
-	RequiredPackages []PackageRequirement
+	RequiredPackages []RequiredPackage
 }
 
 func (b *Bundle) Validate() error {
@@ -195,7 +200,7 @@ func (b *Bundle) Validate() error {
 		return errors.New("name must be set")
 	}
 	if b.Channel == nil {
-		return errors.New("package must be set")
+		return errors.New("channel must be set")
 	}
 	if b.Package == nil {
 		return errors.New("package must be set")
@@ -215,12 +220,12 @@ func (b *Bundle) Validate() error {
 	}
 	for i, rapi := range b.RequiredAPIs {
 		if err := rapi.Validate(); err != nil {
-			return fmt.Errorf("invalid required api[%d]: %v", i, err)
+			return fmt.Errorf("invalid required api [%d]: %v", i, err)
 		}
 	}
 	for i, papi := range b.ProvidedAPIs {
 		if err := papi.Validate(); err != nil {
-			return fmt.Errorf("invalid provided api[%d]: %v", i, err)
+			return fmt.Errorf("invalid provided api [%d]: %v", i, err)
 		}
 	}
 	version, err := semver.Parse(b.Version)
@@ -238,23 +243,28 @@ func (b *Bundle) Validate() error {
 		}
 	}
 	// TODO(joelanford): What is the expected presence of skipped CSVs?
-	for _, skip := range b.Skips {
-		_ = skip
+	for i, skip := range b.Skips {
+		if skip == "" {
+			return fmt.Errorf("skip[%d] is empty", i)
+		}
 	}
+
 	// TODO(joelanford): Validate image string as container reference?
-	_ = b.Image
+	if b.Image == "" {
+		return fmt.Errorf("image is unset")
+	}
 
 	for i, reqPkg := range b.RequiredPackages {
 		if err := reqPkg.Validate(); err != nil {
-			return fmt.Errorf("invalid required package[%d]: %v", i, err)
+			return fmt.Errorf("invalid required package [%d]: %v", i, err)
 		}
 	}
 	return nil
 }
 
-func (b Bundle) Provides(group, version, kind string) bool {
-	for _, gvk := range b.ProvidedAPIs {
-		if group == gvk.Group && version == gvk.Version && kind == gvk.Kind {
+func (b Bundle) Provides(gvk GroupVersionKind) bool {
+	for _, provided := range b.ProvidedAPIs {
+		if provided == gvk {
 			return true
 		}
 	}
@@ -263,14 +273,14 @@ func (b Bundle) Provides(group, version, kind string) bool {
 
 type Property struct {
 	Type  string
-	Value string
+	Value json.RawMessage
 }
 
 func (p Property) Validate() error {
 	if p.Type == "" {
 		return errors.New("type must be set")
 	}
-	if p.Value == "" {
+	if len(p.Value) == 0 {
 		return errors.New("value must be set")
 	}
 	return nil
@@ -280,7 +290,6 @@ type GroupVersionKind struct {
 	Group   string
 	Version string
 	Kind    string
-	Plural  string
 }
 
 const (
@@ -319,17 +328,17 @@ func (gvk GroupVersionKind) Validate() error {
 	return nil
 }
 
-type PackageRequirement struct {
-	PackageName string
-	Version     string
+type RequiredPackage struct {
+	PackageName  string
+	VersionRange string
 }
 
-func (r PackageRequirement) Validate() error {
+func (r RequiredPackage) Validate() error {
 	if r.PackageName == "" {
 		return errors.New("package name must be set")
 	}
-	if _, err := semver.ParseRange(r.Version); err != nil {
-		return fmt.Errorf("invalid version %q: %v", r.Version, err)
+	if _, err := semver.ParseRange(r.VersionRange); err != nil {
+		return fmt.Errorf("invalid version range %q: %v", r.VersionRange, err)
 	}
 	return nil
 }
