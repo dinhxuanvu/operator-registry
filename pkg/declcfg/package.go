@@ -5,7 +5,7 @@ type pkg struct {
 	Name           string   `json:"name"`
 	DefaultChannel string   `json:"defaultChannel"`
 	Icon           *icon    `json:"icon,omitempty"`
-	Channels       []string `json:"channels"`
+	Channels       []string `json:"channels,omitempty"`
 	Description    string   `json:"description,omitempty"`
 }
 

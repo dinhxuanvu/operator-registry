@@ -75,3 +75,61 @@ func LoadFile(configFile string) (*DeclarativeConfig, error) {
 	}
 	return cfg, nil
 }
+
+func WriteDir(cfg DeclarativeConfig, configDir string) error {
+	entries, err := os.ReadDir(configDir)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return err
+		}
+		if err := os.MkdirAll(configDir, 0755); err != nil {
+			return err
+		}
+	}
+	if len(entries) > 0 {
+		return fmt.Errorf("config dir %q must be empty", configDir)
+	}
+
+	bundlesByPackage := map[string][]bundle{}
+	for _, b := range cfg.Bundles {
+		bundlesByPackage[b.Package] = append(bundlesByPackage[b.Package], b)
+	}
+
+	for _, p := range cfg.Packages {
+		fcfg := DeclarativeConfig{
+			Packages: []pkg{p},
+			Bundles:  bundlesByPackage[p.Name],
+		}
+		if err := WriteFile(fcfg, filepath.Join(configDir, fmt.Sprintf("%s.json", p.Name))); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func WriteFile(cfg DeclarativeConfig, configFile string) error {
+	f, err := os.OpenFile(configFile, os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	enc := json.NewEncoder(f)
+	enc.SetIndent("", "    ")
+
+	bundlesByPackage := map[string][]bundle{}
+	for _, b := range cfg.Bundles {
+		bundlesByPackage[b.Package] = append(bundlesByPackage[b.Package], b)
+	}
+
+	for _, p := range cfg.Packages {
+		if err := enc.Encode(p); err != nil {
+			return err
+		}
+		for _, b := range bundlesByPackage[p.Name] {
+			if err := enc.Encode(b); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}

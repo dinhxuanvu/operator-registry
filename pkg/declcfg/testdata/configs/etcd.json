@@ -152,7 +152,7 @@
         },
         {
             "type": "olm.skips",
-            "value" : "v0.12.2, v0.14.1"
+            "value" : ["etcdoperator.v0.6.1", "etcdoperator.v0.9.0"]
         },
         {
             "type": "olm.channel",

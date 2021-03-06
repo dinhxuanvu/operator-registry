@@ -18,6 +18,70 @@ func ConvertToModel(cfg *DeclarativeConfig) (model.Model, error) {
 	return pkgs, nil
 }
 
+func ConvertFromModel(m model.Model) DeclarativeConfig {
+	packages := []pkg{}
+	bundleMap := map[string]*bundle{}
+
+	for _, p := range m {
+		var i *icon
+		if p.Icon != nil {
+			i = &icon{
+				Base64Data: p.Icon.Data,
+				MediaType:  p.Icon.MediaType,
+			}
+		}
+
+		var channels []string
+		for _, ch := range p.Channels {
+			channels = append(channels, ch.Name)
+
+			for _, chb := range ch.Bundles {
+				b, ok := bundleMap[chb.Name]
+				if !ok {
+					b = &bundle{
+						Schema:     schemaBundle,
+						Name:       chb.Name,
+						Package:    p.Name,
+						Image:      chb.Image,
+						Version:    chb.Version,
+						Properties: extractGlobalPropertiesFromModelBundle(*chb),
+					}
+				}
+				if chb.Replaces == "" {
+					b.Properties = append(b.Properties, property{
+						Type:  propertyTypeChannel,
+						Value: json.RawMessage(fmt.Sprintf(`{"name":%q}`, ch.Name)),
+					})
+				} else {
+					b.Properties = append(b.Properties, property{
+						Type:  propertyTypeChannel,
+						Value: json.RawMessage(fmt.Sprintf(`{"name":%q,"replaces":%q}`, ch.Name, chb.Replaces)),
+					})
+				}
+				bundleMap[chb.Name] = b
+			}
+		}
+		packages = append(packages, pkg{
+			Schema:         schemaPackage,
+			Name:           p.Name,
+			DefaultChannel: p.DefaultChannel.Name,
+			Icon:           i,
+			Channels:       channels,
+			Description:    p.Description,
+		})
+	}
+
+	var bundles []bundle
+	for _, bundle := range bundleMap {
+		bundles = append(bundles, *bundle)
+	}
+
+	return DeclarativeConfig{
+		Packages: packages,
+		Bundles:  bundles,
+	}
+}
+
 func initializeModelPackages(dPkgs []pkg) model.Model {
 	pkgs := model.Model{}
 	for _, dPkg := range dPkgs {
@@ -132,6 +196,7 @@ const (
 	propertyTypeSkips     = "olm.skips"
 	propertyTypeSkipRange = "olm.skipRange"
 
+	propertyTypePackageProvided = "olm.package.provided"
 	propertyTypePackageRequired = "olm.package.required"
 	propertyTypeGVKProvided     = "olm.gvk.provided"
 	propertyTypeGVKRequired     = "olm.gvk.required"
@@ -179,7 +244,7 @@ func convertSkipRangeToModelSkipRange(props []property) (string, error) {
 			continue
 		}
 		var skipRange string
-		if err := json.Unmarshal(prop.Value, &skipRanges); err != nil {
+		if err := json.Unmarshal(prop.Value, &skipRange); err != nil {
 			return "", propertyParseError{i, err}
 		}
 		skipRanges = append(skipRanges, skipRange)
@@ -233,6 +298,52 @@ func convertPropertiesToModelProperties(props []property) []model.Property {
 	var out []model.Property
 	for _, p := range props {
 		out = append(out, model.Property(p))
+	}
+	return out
+}
+
+func extractGlobalPropertiesFromModelBundle(b model.Bundle) []property {
+	var out []property
+
+	out = append(out, property{
+		Type:  propertyTypePackageProvided,
+		Value: json.RawMessage(fmt.Sprintf(`{"packageName":%q,"version":%q}`, b.Package.Name, b.Version)),
+	})
+
+	for _, rp := range b.RequiredPackages {
+		out = append(out, property{
+			Type:  propertyTypePackageRequired,
+			Value: json.RawMessage(fmt.Sprintf(`{"packageName":%q,"versionRange":%q}`, rp.PackageName, rp.VersionRange)),
+		})
+	}
+
+	for _, papi := range b.ProvidedAPIs {
+		out = append(out, property{
+			Type:  propertyTypeGVKProvided,
+			Value: json.RawMessage(fmt.Sprintf(`{"group":%q,"version":%q,"kind":%q}`, papi.Group, papi.Version, papi.Kind)),
+		})
+	}
+
+	for _, rapi := range b.RequiredAPIs {
+		out = append(out, property{
+			Type:  propertyTypeGVKRequired,
+			Value: json.RawMessage(fmt.Sprintf(`{"group":%q,"version":%q,"kind":%q}`, rapi.Group, rapi.Version, rapi.Kind)),
+		})
+	}
+
+	if len(b.Skips) > 0 {
+		skips, _ := json.Marshal(b.Skips)
+		out = append(out, property{
+			Type:  propertyTypeSkips,
+			Value: skips,
+		})
+	}
+
+	if b.SkipRange != "" {
+		out = append(out, property{
+			Type:  propertyTypeSkipRange,
+			Value: json.RawMessage(fmt.Sprintf("%q", b.SkipRange)),
+		})
 	}
 	return out
 }

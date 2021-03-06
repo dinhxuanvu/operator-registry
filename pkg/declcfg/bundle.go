@@ -10,8 +10,8 @@ type bundle struct {
 	Package       string         `json:"package"`
 	Image         string         `json:"image"`
 	Version       string         `json:"version"`
-	Properties    []property     `json:"properties"`
-	RelatedImages []relatedImage `json:"relatedImages"`
+	Properties    []property     `json:"properties,omitempty"`
+	RelatedImages []relatedImage `json:"relatedImages,omitempty"`
 }
 
 type property struct {
