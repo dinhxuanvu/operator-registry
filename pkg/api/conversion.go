@@ -1,6 +1,8 @@
 package api
 
 import (
+	"encoding/json"
+
 	"github.com/operator-framework/operator-registry/pkg/model"
 )
 
@@ -17,11 +19,16 @@ const (
 	propertyTypeGVKRequired     = "olm.gvk.required"
 )
 
-func ConvertModelBundleToAPIBundle(b model.Bundle) *Bundle {
+func ConvertModelBundleToAPIBundle(b model.Bundle) (*Bundle, error) {
+	csvJson, err := json.Marshal(b.CSV)
+	if err != nil {
+		return nil, err
+	}
 	return &Bundle{
 		CsvName:      b.Name,
 		PackageName:  b.Package.Name,
 		ChannelName:  b.Channel.Name,
+		CsvJson:      string(csvJson),
 		BundlePath:   b.Image,
 		ProvidedApis: convertModelGVKsToAPIGVKs(b.ProvidedAPIs),
 		RequiredApis: convertModelGVKsToAPIGVKs(b.RequiredAPIs),
@@ -31,7 +38,7 @@ func ConvertModelBundleToAPIBundle(b model.Bundle) *Bundle {
 		Properties:   convertModelPropertiesToAPIProperties(b.Properties),
 		Replaces:     b.Replaces,
 		Skips:        b.Skips,
-	}
+	}, nil
 }
 
 func convertModelGVKsToAPIGVKs(gvks []model.GroupVersionKind) []*GroupVersionKind {

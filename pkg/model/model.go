@@ -9,6 +9,7 @@ import (
 
 	"github.com/blang/semver"
 	"github.com/h2non/filetype"
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"k8s.io/apimachinery/pkg/util/validation"
 )
 
@@ -193,6 +194,9 @@ type Bundle struct {
 	ProvidedAPIs     []GroupVersionKind
 	RequiredAPIs     []GroupVersionKind
 	RequiredPackages []RequiredPackage
+
+	// For backwards-compat reasons, include a CSV in the model.
+	CSV *v1alpha1.ClusterServiceVersion
 }
 
 func (b *Bundle) Validate() error {

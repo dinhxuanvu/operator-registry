@@ -78,16 +78,14 @@ func LoadFile(configFile string) (*DeclarativeConfig, error) {
 
 func WriteDir(cfg DeclarativeConfig, configDir string) error {
 	entries, err := os.ReadDir(configDir)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return err
-		}
-		if err := os.MkdirAll(configDir, 0755); err != nil {
-			return err
-		}
+	if err != nil && !os.IsNotExist(err) {
+		return err
 	}
 	if len(entries) > 0 {
 		return fmt.Errorf("config dir %q must be empty", configDir)
+	}
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		return err
 	}
 
 	bundlesByPackage := map[string][]bundle{}
