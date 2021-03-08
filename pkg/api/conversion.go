@@ -20,15 +20,20 @@ const (
 )
 
 func ConvertModelBundleToAPIBundle(b model.Bundle) (*Bundle, error) {
-	csvJson, err := json.Marshal(b.CSV)
-	if err != nil {
-		return nil, err
+	csvJson := ""
+	if b.CSV != nil {
+		d, err := json.Marshal(b.CSV)
+		if err != nil {
+			return nil, err
+		}
+		csvJson = string(d)
 	}
+
 	return &Bundle{
 		CsvName:      b.Name,
 		PackageName:  b.Package.Name,
 		ChannelName:  b.Channel.Name,
-		CsvJson:      string(csvJson),
+		CsvJson:      csvJson,
 		BundlePath:   b.Image,
 		ProvidedApis: convertModelGVKsToAPIGVKs(b.ProvidedAPIs),
 		RequiredApis: convertModelGVKsToAPIGVKs(b.RequiredAPIs),

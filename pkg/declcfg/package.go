@@ -10,6 +10,6 @@ type pkg struct {
 }
 
 type icon struct {
-	Base64Data []byte `json:"base64data"`
-	MediaType  string `json:"mediatype"`
+	Data      []byte `json:"base64data"`
+	MediaType string `json:"mediatype"`
 }

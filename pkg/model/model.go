@@ -9,6 +9,7 @@ import (
 
 	"github.com/blang/semver"
 	"github.com/h2non/filetype"
+	svg "github.com/h2non/go-is-svg"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"k8s.io/apimachinery/pkg/util/validation"
 )
@@ -80,6 +81,14 @@ type Icon struct {
 func (i *Icon) Validate() error {
 	if len(i.Data) == 0 {
 		return errors.New("icon data must be set if icon is defined")
+	}
+
+	// TODO(joelanford): Are SVG images valid?
+	if i.MediaType == "image/svg+xml" {
+		if !svg.IsSVG(i.Data) {
+			return fmt.Errorf("icon media type %q does not match data", i.MediaType)
+		}
+		return nil
 	}
 	if !filetype.IsImage(i.Data) {
 		return errors.New("icon data is not an image")
@@ -188,15 +197,15 @@ type Bundle struct {
 	SkipRange  string
 	Properties []Property
 
-	// Many clients will be interested in these values, so
-	// rather than make each client traverse and parse the underlying
-	// properties, let's centralize them in the model.
-	ProvidedAPIs     []GroupVersionKind
+	// For backwards-compat reasons, include a CSV in the model.
+	CSV          *v1alpha1.ClusterServiceVersion
+	ProvidedAPIs []GroupVersionKind
+
+	// TODO(joelanford): we may be able to remove these from the model.
+	//   Need to check to see if their presence here would simplify GRPC
+	//   serving for backwards-compatibility convenience.
 	RequiredAPIs     []GroupVersionKind
 	RequiredPackages []RequiredPackage
-
-	// For backwards-compat reasons, include a CSV in the model.
-	CSV *v1alpha1.ClusterServiceVersion
 }
 
 func (b *Bundle) Validate() error {
