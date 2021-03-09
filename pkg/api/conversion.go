@@ -52,7 +52,7 @@ func ConvertModelBundleToAPIBundle(b model.Bundle) (*Bundle, error) {
 func unstructuredToStrings(in []unstructured.Unstructured) []string {
 	var out []string
 	for _, obj := range in {
-		d, err := json.Marshal(obj)
+		d, err := json.Marshal(obj.Object)
 		if err != nil {
 			panic(err)
 		}

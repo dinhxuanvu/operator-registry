@@ -198,6 +198,7 @@ func populateModelChannels(pkgs model.Model, bundles []bundle) error {
 				RequiredPackages: requiredPackagesToModelRequiredPackages(props.requiredPackages),
 				Properties:       propertiesToModelProperties(props.all),
 				CSV:              csv,
+				Objects:          props.objects,
 			}
 		}
 	}
@@ -377,7 +378,7 @@ func extractGlobalPropertiesFromModelBundle(b model.Bundle) []property {
 	for _, obj := range b.Objects {
 		out = append(out, property{
 			Type:  propertyTypeObject,
-			Value: mustJSONMarshal(obj),
+			Value: mustJSONMarshal(obj.Object),
 		})
 	}
 
