@@ -98,8 +98,9 @@ func (i *Icon) Validate() error {
 	if err != nil {
 		return err
 	}
-	if t.MIME.Type != i.MediaType {
-		return fmt.Errorf("icon media type %q does not match detected media type %q", i.MediaType, t.MIME)
+	if t.MIME.Value != i.MediaType {
+		return fmt.Errorf("icon media type %q does not match detected media type %q", i.MediaType, t.MIME.Value)
+
 	}
 	return nil
 }
