@@ -3,6 +3,8 @@ package api
 import (
 	"encoding/json"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
 	"github.com/operator-framework/operator-registry/pkg/model"
 )
 
@@ -34,6 +36,7 @@ func ConvertModelBundleToAPIBundle(b model.Bundle) (*Bundle, error) {
 		PackageName:  b.Package.Name,
 		ChannelName:  b.Channel.Name,
 		CsvJson:      csvJson,
+		Object:       unstructuredToStrings(b.Objects),
 		BundlePath:   b.Image,
 		ProvidedApis: convertModelGVKsToAPIGVKs(b.ProvidedAPIs),
 		RequiredApis: convertModelGVKsToAPIGVKs(b.RequiredAPIs),
@@ -44,6 +47,18 @@ func ConvertModelBundleToAPIBundle(b model.Bundle) (*Bundle, error) {
 		Replaces:     b.Replaces,
 		Skips:        b.Skips,
 	}, nil
+}
+
+func unstructuredToStrings(in []unstructured.Unstructured) []string {
+	var out []string
+	for _, obj := range in {
+		d, err := json.Marshal(obj)
+		if err != nil {
+			panic(err)
+		}
+		out = append(out, string(d))
+	}
+	return out
 }
 
 func convertModelGVKsToAPIGVKs(gvks []model.GroupVersionKind) []*GroupVersionKind {

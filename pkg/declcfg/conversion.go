@@ -9,6 +9,7 @@ import (
 	"github.com/operator-framework/api/pkg/lib/version"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/operator-framework/operator-registry/pkg/model"
 )
@@ -373,6 +374,13 @@ func extractGlobalPropertiesFromModelBundle(b model.Bundle) []property {
 		}
 	}
 
+	for _, obj := range b.Objects {
+		out = append(out, property{
+			Type:  propertyTypeObject,
+			Value: mustJSONMarshal(obj),
+		})
+	}
+
 	return out
 }
 
@@ -395,12 +403,9 @@ const (
 	propertyTypePackageRequired = "olm.package.required"
 	propertyTypeGVKRequired     = "olm.gvk.required"
 
-	// Required to populate model's provided APIs for backwards-compatibility
-	// with GRPC API to answer queries for bundles/channels that provided
-	// requested GVKs.
-	propertyTypeGVKProvided = "olm.gvk.provided"
-
-	// Required to populate model's CSV for backwards-compatibility
+	// The following properties are required to maintain backwards-compatibility
+	// with the GRPC Bundle API.
+	propertyTypeGVKProvided       = "olm.gvk.provided"
 	propertyTypeCSVAnnotations    = "olm.csv.annotations"
 	propertyTypeCSVDescription    = "olm.csv.description"
 	propertyTypeCSVDisplayName    = "olm.csv.displayName"
@@ -411,6 +416,7 @@ const (
 	propertyTypeCSVMaturity       = "olm.csv.maturity"
 	propertyTypeCSVMinKubeVersion = "olm.csv.minKubeVersion"
 	propertyTypeCSVProvider       = "olm.csv.provider"
+	propertyTypeObject            = "olm.object"
 )
 
 type channel struct {
@@ -453,6 +459,7 @@ type properties struct {
 	csvMaturity       string
 	csvMinKubeVersion string
 	csvProvider       *v1alpha1.AppLink
+	objects           []unstructured.Unstructured
 	others            []property
 	all               []property
 }
@@ -590,6 +597,12 @@ func parseProperties(props []property) (*properties, error) {
 				return nil, propertyMultipleNotAllowedError{i: i, t: prop.Type}
 			}
 			ps.csvProvider = &p
+		case propertyTypeObject:
+			var p unstructured.Unstructured
+			if err := json.Unmarshal(prop.Value, &p); err != nil {
+				return nil, propertyParseError{i: i, t: prop.Type, err: err}
+			}
+			ps.objects = append(ps.objects, p)
 		default:
 			ps.others = append(ps.others, prop)
 		}

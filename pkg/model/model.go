@@ -11,6 +11,7 @@ import (
 	"github.com/h2non/filetype"
 	svg "github.com/h2non/go-is-svg"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/validation"
 )
 
@@ -197,9 +198,11 @@ type Bundle struct {
 	SkipRange  string
 	Properties []Property
 
-	// For backwards-compat reasons, include a CSV in the model.
+	// For backwards-compat reasons, include a CSV, ProvidedAPIs,
+	// and Objects in the model.
 	CSV          *v1alpha1.ClusterServiceVersion
 	ProvidedAPIs []GroupVersionKind
+	Objects      []unstructured.Unstructured
 
 	// TODO(joelanford): we may be able to remove these from the model.
 	//   Need to check to see if their presence here would simplify GRPC
