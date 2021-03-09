@@ -154,6 +154,10 @@ func populateModelChannels(pkgs model.Model, bundles []bundle) error {
 			}
 
 			csv := &v1alpha1.ClusterServiceVersion{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: v1alpha1.SchemeGroupVersion.String(),
+					Kind:       v1alpha1.ClusterServiceVersionKind,
+				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:        b.Name,
 					Annotations: props.csvAnnotations,
