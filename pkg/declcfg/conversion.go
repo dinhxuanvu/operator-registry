@@ -212,11 +212,12 @@ func modelIconToCSVIcon(in model.Icon) v1alpha1.Icon {
 
 func gvksToModelGVKs(in []gvk) []model.GroupVersionKind {
 	var out []model.GroupVersionKind
-	for _, gvk := range in {
+	for _, i := range in {
 		out = append(out, model.GroupVersionKind{
-			Group:   gvk.Group,
-			Version: gvk.Version,
-			Kind:    gvk.Kind,
+			Group:   i.Group,
+			Version: i.Version,
+			Kind:    i.Kind,
+			Plural:  i.Plural,
 		})
 	}
 	return out
@@ -431,6 +432,7 @@ type gvk struct {
 	Group   string `json:"group"`
 	Version string `json:"version"`
 	Kind    string `json:"kind"`
+	Plural  string `json:"plural,omitempty"`
 }
 
 type properties struct {

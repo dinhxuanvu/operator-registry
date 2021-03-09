@@ -277,7 +277,7 @@ func (b *Bundle) Validate() error {
 
 func (b Bundle) Provides(gvk GroupVersionKind) bool {
 	for _, provided := range b.ProvidedAPIs {
-		if provided == gvk {
+		if provided.Group == gvk.Group && provided.Version == gvk.Version && provided.Kind == gvk.Kind {
 			return true
 		}
 	}
@@ -303,6 +303,7 @@ type GroupVersionKind struct {
 	Group   string
 	Version string
 	Kind    string
+	Plural  string
 }
 
 const (
@@ -338,6 +339,12 @@ func (gvk GroupVersionKind) Validate() error {
 	//if string(gvk.Kind[0]) == strings.ToLower(string(gvk.Kind[0])) {
 	//	return fmt.Errorf("invalid kind %q: must start with an uppercase character", gvk.Kind)
 	//}
+
+	if gvk.Plural != "" {
+		if errs := validation.IsDNS1035Label(gvk.Plural); len(errs) != 0 {
+			return fmt.Errorf("invalid plural %q: %s", gvk.Plural, strings.Join(errs, ", "))
+		}
+	}
 	return nil
 }
 
