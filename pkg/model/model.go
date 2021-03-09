@@ -83,7 +83,13 @@ func (i *Icon) Validate() error {
 	if len(i.Data) == 0 {
 		return errors.New("icon data must be set if icon is defined")
 	}
+	return nil
+	// TODO(joelanford): Should we detect the media type of the data and
+	//   compare it to the mediatype listed in the icon field?
+	// return i.validateData()
+}
 
+func (i *Icon) validateData() error {
 	// TODO(joelanford): Are SVG images valid?
 	if i.MediaType == "image/svg+xml" {
 		if !svg.IsSVG(i.Data) {
@@ -100,7 +106,6 @@ func (i *Icon) Validate() error {
 	}
 	if t.MIME.Value != i.MediaType {
 		return fmt.Errorf("icon media type %q does not match detected media type %q", i.MediaType, t.MIME.Value)
-
 	}
 	return nil
 }
