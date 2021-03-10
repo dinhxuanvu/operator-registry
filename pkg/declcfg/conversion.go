@@ -302,10 +302,10 @@ func extractGlobalPropertiesFromModelBundle(b model.Bundle) []property {
 		})
 	}
 
-	if len(b.Skips) > 0 {
+	for _, skip := range b.Skips {
 		out = append(out, property{
 			Type:  propertyTypeSkips,
-			Value: mustJSONMarshal(b.Skips),
+			Value: mustJSONMarshal(skip),
 		})
 	}
 
@@ -484,11 +484,11 @@ func parseProperties(props []property) (*properties, error) {
 			}
 			ps.channels = append(ps.channels, p)
 		case propertyTypeSkips:
-			var p []string
+			var p string
 			if err := json.Unmarshal(prop.Value, &p); err != nil {
 				return nil, propertyParseError{i: i, t: prop.Type, err: err}
 			}
-			ps.skips = append(ps.skips, p...)
+			ps.skips = append(ps.skips, p)
 		case propertyTypeSkipRange:
 			var p string
 			if err := json.Unmarshal(prop.Value, &p); err != nil {
