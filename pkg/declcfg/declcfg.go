@@ -77,7 +77,7 @@ func LoadFile(configFile string) (*DeclarativeConfig, error) {
 }
 
 func WriteDir(cfg DeclarativeConfig, configDir string) error {
-	entries, err := os.ReadDir(configDir)
+	entries, err := ioutil.ReadDir(configDir)
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}

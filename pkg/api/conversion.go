@@ -77,28 +77,32 @@ func convertModelGVKsToAPIGVKs(gvks []model.GroupVersionKind) []*GroupVersionKin
 func convertModelPropertiesToAPIProperties(props []model.Property) []*Property {
 	var out []*Property
 	for _, prop := range props {
+		// Remove the "plural" field from GVK properties.
+		value := prop.Value
+		if prop.Type == propertyTypeGVKProvided || prop.Type == propertyTypeGVKRequired {
+			value = removePluralFromGVKProperty(value)
+		}
+		out = append(out, &Property{
+			Type:  prop.Type,
+			Value: string(value),
+		})
+
 		switch prop.Type {
 		case propertyTypeGVKProvided:
-			// For backwards-compatibility, rename property type to
-			// "olm.gvk" and remove the "plural" field from the value.
+			// For backwards-compatibility, add duplicate property with
+			// type set to "olm.gvk"
 			out = append(out, &Property{
 				Type:  apiPropertyTypeGVK,
-				Value: string(removePluralFromGVKProperty(prop.Value)),
+				Value: string(value),
 			})
 		case propertyTypePackageProvided:
-			// For backwards-compatibility, rename property type to
-			// "olm.package".
+			// For backwards-compatibility, add duplicate property with
+			// type set to "olm.package"
 			out = append(out, &Property{
 				Type:  apiPropertyTypePackage,
-				Value: string(prop.Value),
-			})
-		default:
-			out = append(out, &Property{
-				Type:  prop.Type,
-				Value: string(prop.Value),
+				Value: string(value),
 			})
 		}
-
 	}
 	return out
 }
