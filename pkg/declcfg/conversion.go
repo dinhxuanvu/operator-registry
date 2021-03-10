@@ -335,28 +335,29 @@ func extractGlobalPropertiesFromModelBundle(b model.Bundle) []property {
 				Value: mustJSONMarshal(b.CSV.Spec.DisplayName),
 			})
 		}
-		if len(b.CSV.Spec.InstallModes) > 0 {
+
+		for _, im := range b.CSV.Spec.InstallModes {
 			out = append(out, property{
-				Type:  propertyTypeCSVInstallModes,
-				Value: mustJSONMarshal(b.CSV.Spec.InstallModes),
+				Type:  propertyTypeCSVInstallMode,
+				Value: mustJSONMarshal(im),
 			})
 		}
-		if len(b.CSV.Spec.Keywords) > 0 {
+		for _, k := range b.CSV.Spec.Keywords {
 			out = append(out, property{
-				Type:  propertyTypeCSVKeywords,
-				Value: mustJSONMarshal(b.CSV.Spec.Keywords),
+				Type:  propertyTypeCSVKeyword,
+				Value: mustJSONMarshal(k),
 			})
 		}
-		if len(b.CSV.Spec.Links) > 0 {
+		for _, l := range b.CSV.Spec.Links {
 			out = append(out, property{
-				Type:  propertyTypeCSVLinks,
-				Value: mustJSONMarshal(b.CSV.Spec.Links),
+				Type:  propertyTypeCSVLink,
+				Value: mustJSONMarshal(l),
 			})
 		}
-		if len(b.CSV.Spec.Maintainers) > 0 {
+		for _, m := range b.CSV.Spec.Maintainers {
 			out = append(out, property{
-				Type:  propertyTypeCSVMaintainers,
-				Value: mustJSONMarshal(b.CSV.Spec.Maintainers),
+				Type:  propertyTypeCSVMaintainer,
+				Value: mustJSONMarshal(m),
 			})
 		}
 		if len(b.CSV.Spec.Maturity) > 0 {
@@ -414,10 +415,10 @@ const (
 	propertyTypeCSVAnnotations    = "olm.csv.annotations"
 	propertyTypeCSVDescription    = "olm.csv.description"
 	propertyTypeCSVDisplayName    = "olm.csv.displayName"
-	propertyTypeCSVInstallModes   = "olm.csv.installModes"
-	propertyTypeCSVKeywords       = "olm.csv.keywords"
-	propertyTypeCSVLinks          = "olm.csv.links"
-	propertyTypeCSVMaintainers    = "olm.csv.maintainers"
+	propertyTypeCSVInstallMode    = "olm.csv.installMode"
+	propertyTypeCSVKeyword        = "olm.csv.keyword"
+	propertyTypeCSVLink           = "olm.csv.link"
+	propertyTypeCSVMaintainer     = "olm.csv.maintainer"
 	propertyTypeCSVMaturity       = "olm.csv.maturity"
 	propertyTypeCSVMinKubeVersion = "olm.csv.minKubeVersion"
 	propertyTypeCSVProvider       = "olm.csv.provider"
@@ -551,30 +552,30 @@ func parseProperties(props []property) (*properties, error) {
 				return nil, propertyMultipleNotAllowedError{i: i, t: prop.Type}
 			}
 			ps.csvDisplayName = p
-		case propertyTypeCSVInstallModes:
-			var p []v1alpha1.InstallMode
+		case propertyTypeCSVInstallMode:
+			var p v1alpha1.InstallMode
 			if err := json.Unmarshal(prop.Value, &p); err != nil {
 				return nil, propertyParseError{i: i, t: prop.Type, err: err}
 			}
-			ps.csvInstallModes = append(ps.csvInstallModes, p...)
-		case propertyTypeCSVKeywords:
-			var p []string
+			ps.csvInstallModes = append(ps.csvInstallModes, p)
+		case propertyTypeCSVKeyword:
+			var p string
+			if err := json.Unmarshal(prop.Value, p); err != nil {
+				return nil, propertyParseError{i: i, t: prop.Type, err: err}
+			}
+			ps.csvKeywords = append(ps.csvKeywords, p)
+		case propertyTypeCSVLink:
+			var p v1alpha1.AppLink
 			if err := json.Unmarshal(prop.Value, &p); err != nil {
 				return nil, propertyParseError{i: i, t: prop.Type, err: err}
 			}
-			ps.csvKeywords = append(ps.csvKeywords, p...)
-		case propertyTypeCSVLinks:
-			var p []v1alpha1.AppLink
+			ps.csvLinks = append(ps.csvLinks, p)
+		case propertyTypeCSVMaintainer:
+			var p v1alpha1.Maintainer
 			if err := json.Unmarshal(prop.Value, &p); err != nil {
 				return nil, propertyParseError{i: i, t: prop.Type, err: err}
 			}
-			ps.csvLinks = append(ps.csvLinks, p...)
-		case propertyTypeCSVMaintainers:
-			var p []v1alpha1.Maintainer
-			if err := json.Unmarshal(prop.Value, &p); err != nil {
-				return nil, propertyParseError{i: i, t: prop.Type, err: err}
-			}
-			ps.csvMaintainers = append(ps.csvMaintainers, p...)
+			ps.csvMaintainers = append(ps.csvMaintainers, p)
 		case propertyTypeCSVMaturity:
 			var p string
 			if err := json.Unmarshal(prop.Value, &p); err != nil {
@@ -615,87 +616,3 @@ func parseProperties(props []property) (*properties, error) {
 
 	return &ps, nil
 }
-
-// {
-//  "annotations": {
-//    "alm-examples": "[{ \"apiVersion\": \"charts.helm.k8s.io/v1alpha1\", \"kind\": \"Cockroachdb\", \"metadata\": { \"name\": \"example\" }, \"spec\": { \"Name\": \"cdb\", \"Image\": \"cockroachdb/cockroach\", \"ImageTag\": \"v19.1.3\", \"ImagePullPolicy\": \"Always\", \"Replicas\": 3, \"MaxUnavailable\": 1, \"Component\": \"cockroachdb\", \"InternalGrpcPort\": 26257, \"ExternalGrpcPort\": 26257, \"InternalGrpcName\": \"grpc\", \"ExternalGrpcName\": \"grpc\", \"InternalHttpPort\": 8080, \"ExternalHttpPort\": 8080, \"HttpName\": \"http\", \"Resources\": { \"requests\": { \"cpu\": \"500m\", \"memory\": \"512Mi\" } }, \"InitPodResources\": { }, \"Storage\": \"10Gi\", \"StorageClass\": null, \"CacheSize\": \"25%\", \"MaxSQLMemory\": \"25%\", \"ClusterDomain\": \"cluster.local\", \"NetworkPolicy\": { \"Enabled\": false, \"AllowExternal\": true }, \"Service\": { \"type\": \"ClusterIP\", \"annotations\": { } }, \"PodManagementPolicy\": \"Parallel\", \"UpdateStrategy\": { \"type\": \"RollingUpdate\" }, \"NodeSelector\": { }, \"Tolerations\": { }, \"Secure\": { \"Enabled\": false, \"RequestCertsImage\": \"cockroachdb/cockroach-k8s-request-cert\", \"RequestCertsImageTag\": \"0.4\", \"ServiceAccount\": { \"Create\": true } } } }]",
-//    "capabilities": "Basic Install",
-//    "categories": "Database",
-//    "certified": "false",
-//    "containerImage": "quay.io/helmoperators/cockroachdb:2.1.1",
-//    "createdAt": "2019-01-24T15-33-43Z",
-//    "description": "CockroachDB Operator based on the CockroachDB helm chart",
-//    "repository": "https://github.com/dmesser/cockroachdb-operator",
-//    "support": "a-robinson"
-//  },
-//  "apiservicedefinitions": {},
-//  "customresourcedefinitions": {
-//    "owned": [
-//      {
-//        "description": "Represents a CockroachDB cluster",
-//        "displayName": "CockroachDB",
-//        "kind": "Cockroachdb",
-//        "name": "cockroachdbs.charts.helm.k8s.io",
-//        "version": "v1alpha1"
-//      }
-//    ]
-//  },
-//  "description": "CockroachDB is a scalable, survivable, strongly-consistent SQL database.\n\n## About this Operator\n\nThis Operator is based on a Helm chart for CockroachDB. It supports reconfiguration for some parameters, but notably does not handle scale down of the replica count in a seamless manner. Scale up works great.\n\n## Core capabilities\n* **StatefulSet** - Sets up a dynamically scalable CockroachDB cluster using a Kubernetes StatefulSet\n* **Expand Replicas** - Supports expanding the set of replicas by simply editing your object\n* **Dashboard** - Installs the CockroachDB user interface to administer your cluster. Easily expose it via an Ingress rule.\n\nReview all of the [confiuguration options](https://github.com/helm/charts/tree/master/stable/cockroachdb#configuration) to best run your database instance. The example configuration is derived from the chart's [`values.yaml`](https://github.com/helm/charts/blob/master/stable/cockroachdb/values.yaml).\n\n## Using the cluster\n\nThe resulting cluster endpoint can be consumed from a `Service` that follows the pattern: `<StatefulSet-name>-public`. For example to connect using the command line client, use something like the following to obtain the name of the service:\n\n```\nkubectl get service -l chart=cockroachdb-2.0.11\nNAME                                           TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)              AGE\nexample-9f8ngwzrxbxrulxqmdqfhn51h-cdb          ClusterIP   None             <none>        26257/TCP,8080/TCP   24m\nexample-9f8ngwzrxbxrulxqmdqfhn51h-cdb-public   ClusterIP   10.106.249.134   <none>        26257/TCP,8080/TCP   24m\n```\n\nThen you can use the CockroachDB command line client to connect to the database cluster:\n\n```\nkubectl run -it --rm cockroach-client --image=cockroachdb/cockroach --restart=Never --command -- ./cockroach sql --insecure --host example-9f8ngwzrxbxrulxqmdqfhn51h-cdb-public\n```\n\n## Before you start\n\nThis Operator requires a cluster with PV support in order to run correctly.\n",
-//  "displayName": "CockroachDB",
-//  "installModes": [
-//    {
-//      "supported": true,
-//      "type": "OwnNamespace"
-//    },
-//    {
-//      "supported": true,
-//      "type": "SingleNamespace"
-//    },
-//    {
-//      "supported": false,
-//      "type": "MultiNamespace"
-//    },
-//    {
-//      "supported": true,
-//      "type": "AllNamespaces"
-//    }
-//  ],
-//  "keywords": [
-//    "cockroach",
-//    "cockroachdb",
-//    "postgres"
-//  ],
-//  "links": [
-//    {
-//      "name": "Helm Chart Source",
-//      "url": "https://github.com/helm/charts/tree/master/stable/cockroachdb"
-//    },
-//    {
-//      "name": "Configuration Options",
-//      "url": "https://github.com/helm/charts/tree/master/stable/cockroachdb#configuration"
-//    },
-//    {
-//      "name": "CockroachDB Source",
-//      "url": "https://github.com/cockroachdb/cockroach"
-//    }
-//  ],
-//  "maintainers": [
-//    {
-//      "email": "alex@cockroachlabs.com",
-//      "name": "a-robinson"
-//    },
-//    {
-//      "email": "dmesser@redhat.com",
-//      "name": "Daniel Messer"
-//    }
-//  ],
-//  "maturity": "stable",
-//  "minKubeVersion": "1.8.0",
-//  "provider": {
-//    "name": "Helm Community"
-//  },
-//  "relatedImages": [
-//    "quay.io/helmoperators/cockroachdb:v2.1.11"
-//  ],
-//  "version": "2.1.11"
-//}
