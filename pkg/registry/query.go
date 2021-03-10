@@ -35,11 +35,7 @@ func (q Querier) ListBundles(_ context.Context) ([]*api.Bundle, error) {
 	for _, pkg := range q.pkgs {
 		for _, ch := range pkg.Channels {
 			for _, b := range ch.Bundles {
-				bundle, err := api.ConvertModelBundleToAPIBundle(*b)
-				if err != nil {
-					return nil, err
-				}
-				bundles = append(bundles, bundle)
+				bundles = append(bundles, api.ConvertModelBundleToAPIBundle(*b))
 			}
 		}
 	}
@@ -83,7 +79,7 @@ func (q Querier) GetBundle(_ context.Context, pkgName, channelName, csvName stri
 	if !ok {
 		return nil, fmt.Errorf("package %q, channel %q, bundle %q not found", pkgName, channelName, csvName)
 	}
-	return api.ConvertModelBundleToAPIBundle(*b)
+	return api.ConvertModelBundleToAPIBundle(*b), nil
 }
 
 func (q Querier) GetBundleForChannel(_ context.Context, pkgName string, channelName string) (*api.Bundle, error) {
@@ -99,7 +95,7 @@ func (q Querier) GetBundleForChannel(_ context.Context, pkgName string, channelN
 	if err != nil {
 		return nil, fmt.Errorf("package %q, channel %q has invalid head: %v", pkgName, channelName, err)
 	}
-	return api.ConvertModelBundleToAPIBundle(*head)
+	return api.ConvertModelBundleToAPIBundle(*head), nil
 }
 
 func (q Querier) GetChannelEntriesThatReplace(_ context.Context, name string) ([]*ChannelEntry, error) {
@@ -137,7 +133,7 @@ func (q Querier) GetBundleThatReplaces(_ context.Context, name, pkgName, channel
 	}
 	for _, b := range ch.Bundles {
 		if b.Replaces == name {
-			return api.ConvertModelBundleToAPIBundle(*b)
+			return api.ConvertModelBundleToAPIBundle(*b), nil
 		}
 	}
 	return nil, fmt.Errorf("no entry found for package %q, channel %q", pkgName, channelName)

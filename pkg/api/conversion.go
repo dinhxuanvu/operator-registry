@@ -3,8 +3,6 @@ package api
 import (
 	"encoding/json"
 
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
 	"github.com/operator-framework/operator-registry/pkg/model"
 )
 
@@ -21,22 +19,11 @@ const (
 	propertyTypeGVKRequired     = "olm.gvk.required"
 )
 
-func ConvertModelBundleToAPIBundle(b model.Bundle) (*Bundle, error) {
-	csvJson := ""
-	if b.CSV != nil {
-		d, err := json.Marshal(b.CSV)
-		if err != nil {
-			return nil, err
-		}
-		csvJson = string(d)
-	}
-
+func ConvertModelBundleToAPIBundle(b model.Bundle) *Bundle {
 	return &Bundle{
 		CsvName:      b.Name,
 		PackageName:  b.Package.Name,
 		ChannelName:  b.Channel.Name,
-		CsvJson:      csvJson,
-		Object:       unstructuredToStrings(b.Objects),
 		BundlePath:   b.Image,
 		ProvidedApis: convertModelGVKsToAPIGVKs(b.ProvidedAPIs),
 		RequiredApis: convertModelGVKsToAPIGVKs(b.RequiredAPIs),
@@ -46,19 +33,7 @@ func ConvertModelBundleToAPIBundle(b model.Bundle) (*Bundle, error) {
 		Properties:   convertModelPropertiesToAPIProperties(b.Properties),
 		Replaces:     b.Replaces,
 		Skips:        b.Skips,
-	}, nil
-}
-
-func unstructuredToStrings(in []unstructured.Unstructured) []string {
-	var out []string
-	for _, obj := range in {
-		d, err := json.Marshal(obj.Object)
-		if err != nil {
-			panic(err)
-		}
-		out = append(out, string(d))
 	}
-	return out
 }
 
 func convertModelGVKsToAPIGVKs(gvks []model.GroupVersionKind) []*GroupVersionKind {

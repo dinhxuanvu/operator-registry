@@ -10,8 +10,6 @@ import (
 	"github.com/blang/semver"
 	"github.com/h2non/filetype"
 	svg "github.com/h2non/go-is-svg"
-	"github.com/operator-framework/api/pkg/operators/v1alpha1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/validation"
 )
 
@@ -204,11 +202,11 @@ type Bundle struct {
 	SkipRange  string
 	Properties []Property
 
-	// For backwards-compat reasons, include a CSV, ProvidedAPIs,
-	// and Objects in the model.
-	CSV          *v1alpha1.ClusterServiceVersion
+	// For convenience of backwards-compat, include ProvidedAPIs in the model.
+	// TODO(joelanford): We can remove this from the model if we're okay with
+	//   parsing properties in the GRPC server code to answer question about
+	//   whether bundles provide certain APIs.
 	ProvidedAPIs []GroupVersionKind
-	Objects      []unstructured.Unstructured
 
 	// TODO(joelanford): we may be able to remove these from the model.
 	//   Need to check to see if their presence here would simplify GRPC
