@@ -11,8 +11,10 @@ import (
 
 func ConvertToModel(cfg *DeclarativeConfig) (model.Model, error) {
 	pkgs := initializeModelPackages(cfg.Packages)
-	if err := populateModelChannels(pkgs, cfg.Bundles); err != nil {
-		return nil, fmt.Errorf("populate channels: %v", err)
+	for _, dPkg := range cfg.Packages {
+		if err := populatePackageChannels(pkgs, dPkg, cfg.Bundles); err != nil {
+			return nil, fmt.Errorf("populate channel %q: %v", dPkg.Name, err)
+		}
 	}
 	if err := pkgs.Validate(); err != nil {
 		return nil, err
@@ -33,9 +35,9 @@ func ConvertFromModel(m model.Model) DeclarativeConfig {
 			}
 		}
 
-		var channels []string
+		var validChannelNames []string
 		for _, ch := range p.Channels {
-			channels = append(channels, ch.Name)
+			validChannelNames = append(validChannelNames, ch.Name)
 
 			for _, chb := range ch.Bundles {
 				b, ok := bundleMap[chb.Name]
@@ -64,12 +66,12 @@ func ConvertFromModel(m model.Model) DeclarativeConfig {
 			}
 		}
 		packages = append(packages, pkg{
-			Schema:         schemaPackage,
-			Name:           p.Name,
-			DefaultChannel: p.DefaultChannel.Name,
-			Icon:           i,
-			Channels:       channels,
-			Description:    p.Description,
+			Schema:            schemaPackage,
+			Name:              p.Name,
+			DefaultChannel:    p.DefaultChannel.Name,
+			Icon:              i,
+			ValidChannelNames: validChannelNames,
+			Description:       p.Description,
 		})
 	}
 
@@ -97,29 +99,32 @@ func initializeModelPackages(dPkgs []pkg) model.Model {
 				MediaType: dPkg.Icon.MediaType,
 			}
 		}
-
 		pkg.Channels = map[string]*model.Channel{}
-		for _, ch := range dPkg.Channels {
-			channel := &model.Channel{
-				Package: &pkg,
-				Name:    ch,
-				Bundles: map[string]*model.Bundle{},
-			}
-			if ch == dPkg.DefaultChannel {
-				pkg.DefaultChannel = channel
-			}
-			pkg.Channels[ch] = channel
-		}
 		pkgs[pkg.Name] = &pkg
 	}
 	return pkgs
 }
 
-func populateModelChannels(pkgs model.Model, bundles []bundle) error {
+func populatePackageChannels(pkgs model.Model, dPkg pkg, bundles []bundle) error {
 	for _, b := range bundles {
-		pkg, ok := pkgs[b.Package]
+		// TODO(joelanford): The below two checks are a little hacky since we're dealing
+		//   with lists instead of maps. It would be good to revisit this (perhaps by
+		//   arranging the bundles with their package in a map keyed by the package name)
+
+		// Check if the package name declared by the bundle actually exists in the set
+		// of bundles we already initialized in `pkgs`. We do this before comparing
+		// b.Package with dPkg.Name; otherwise we would silently ignore bundles with
+		// unknown packages.
+		mPkg, ok := pkgs[b.Package]
 		if !ok {
 			return fmt.Errorf("unknown package %q for bundle %q", b.Package, b.Name)
+		}
+
+		// Only once we've confirmed that the bundle package is actually in our set of
+		// packages (above), do we check to see if we should ignore this bundle because
+		// it isn't for the package we're populating.
+		if b.Package != dPkg.Name {
+			continue
 		}
 
 		props, err := parseProperties(b.Properties)
@@ -128,13 +133,24 @@ func populateModelChannels(pkgs model.Model, bundles []bundle) error {
 		}
 
 		for _, bundleChannel := range props.channels {
-			pkgChannel, ok := pkg.Channels[bundleChannel.Name]
+			pkgChannel, ok := mPkg.Channels[bundleChannel.Name]
 			if !ok {
-				return fmt.Errorf("unknown channel %q for bundle %q", bundleChannel.Name, b.Name)
+				if !dPkg.isValidChannel(bundleChannel.Name) {
+					return fmt.Errorf("bundle %q channel %q is not in package's valid channel names %q", b.Name, bundleChannel.Name, dPkg.ValidChannelNames)
+				}
+				pkgChannel = &model.Channel{
+					Package: mPkg,
+					Name:    bundleChannel.Name,
+					Bundles: map[string]*model.Bundle{},
+				}
+				if bundleChannel.Name == dPkg.DefaultChannel {
+					mPkg.DefaultChannel = pkgChannel
+				}
+				mPkg.Channels[bundleChannel.Name] = pkgChannel
 			}
 
 			pkgChannel.Bundles[b.Name] = &model.Bundle{
-				Package:          pkg,
+				Package:          mPkg,
 				Channel:          pkgChannel,
 				Name:             b.Name,
 				Version:          b.Version,
