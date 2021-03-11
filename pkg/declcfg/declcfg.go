@@ -48,27 +48,27 @@ func LoadFile(configFile string) (*DeclarativeConfig, error) {
 	for dec.More() {
 		doc := &json.RawMessage{}
 		if err := dec.Decode(doc); err != nil {
-			return nil, fmt.Errorf("decode error at offset %d: %v", dec.InputOffset(), err)
+			return nil, fmt.Errorf("parse error at offset %d: %v", dec.InputOffset(), err)
 		}
 
 		var in struct{ Schema string }
 		if err := json.Unmarshal(*doc, &in); err != nil {
-			return nil, fmt.Errorf("unmarshal for schema at offset %d: %v", dec.InputOffset(), err)
+			return nil, fmt.Errorf("parse object for schema at offset %d: %v", dec.InputOffset(), err)
 		}
 
 		switch in.Schema {
 		case schemaPackage:
-			var pkg pkg
-			if err := json.Unmarshal(*doc, &pkg); err != nil {
-				return nil, fmt.Errorf("unmarshal as package at offset %d: %v", dec.InputOffset(), err)
+			var p pkg
+			if err := json.Unmarshal(*doc, &p); err != nil {
+				return nil, fmt.Errorf("parse package at offset %d: %v", dec.InputOffset(), err)
 			}
-			cfg.Packages = append(cfg.Packages, pkg)
+			cfg.Packages = append(cfg.Packages, p)
 		case schemaBundle:
-			var bundle bundle
-			if err := json.Unmarshal(*doc, &bundle); err != nil {
-				return nil, fmt.Errorf("unmarshal as bundle at offset %d: %v", dec.InputOffset(), err)
+			var b bundle
+			if err := json.Unmarshal(*doc, &b); err != nil {
+				return nil, fmt.Errorf("parse bundle at offset %d: %v", dec.InputOffset(), err)
 			}
-			cfg.Bundles = append(cfg.Bundles, bundle)
+			cfg.Bundles = append(cfg.Bundles, b)
 		default:
 			return nil, fmt.Errorf("unrecognized schema at offset %d", dec.InputOffset())
 		}
@@ -90,7 +90,12 @@ func WriteDir(cfg DeclarativeConfig, configDir string) error {
 
 	bundlesByPackage := map[string][]bundle{}
 	for _, b := range cfg.Bundles {
-		bundlesByPackage[b.Package] = append(bundlesByPackage[b.Package], b)
+		props, err := parseProperties(b.Properties)
+		if err != nil {
+			return fmt.Errorf("parse properties for bundle %q: %v", b.Name, err)
+		}
+		pkgName := props.providedPackage.PackageName
+		bundlesByPackage[pkgName] = append(bundlesByPackage[pkgName], b)
 	}
 
 	for _, p := range cfg.Packages {
@@ -116,7 +121,12 @@ func WriteFile(cfg DeclarativeConfig, configFile string) error {
 
 	bundlesByPackage := map[string][]bundle{}
 	for _, b := range cfg.Bundles {
-		bundlesByPackage[b.Package] = append(bundlesByPackage[b.Package], b)
+		props, err := parseProperties(b.Properties)
+		if err != nil {
+			return fmt.Errorf("parse properties for bundle %q: %v", b.Name, err)
+		}
+		pkgName := props.providedPackage.PackageName
+		bundlesByPackage[pkgName] = append(bundlesByPackage[pkgName], b)
 	}
 
 	for _, p := range cfg.Packages {

@@ -4,13 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 
-	"github.com/blang/semver"
 	"github.com/h2non/filetype"
 	svg "github.com/h2non/go-is-svg"
-	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 type Model map[string]*Package
@@ -81,14 +78,12 @@ func (i *Icon) Validate() error {
 	if len(i.Data) == 0 {
 		return errors.New("icon data must be set if icon is defined")
 	}
-	return nil
 	// TODO(joelanford): Should we detect the media type of the data and
 	//   compare it to the mediatype listed in the icon field?
-	// return i.validateData()
+	return i.validateData()
 }
 
 func (i *Icon) validateData() error {
-	// TODO(joelanford): Are SVG images valid?
 	if i.MediaType == "image/svg+xml" {
 		if !svg.IsSVG(i.Data) {
 			return fmt.Errorf("icon media type %q does not match data", i.MediaType)
@@ -115,7 +110,7 @@ type Channel struct {
 }
 
 // TODO(joelanford): This function determines the channel head by finding the bundle that has 0
-//   incoming edges, based on replaces, skips, and skipRange. It also expects to find exactly one such bundle.
+//   incoming edges, based on replaces and skips. It also expects to find exactly one such bundle.
 //   Is this the correct algorithm?
 func (c Channel) Head() (*Bundle, error) {
 	incoming := map[string]int{}
@@ -125,24 +120,6 @@ func (c Channel) Head() (*Bundle, error) {
 		}
 		for _, skip := range b.Skips {
 			incoming[skip] += 1
-		}
-		if b.SkipRange != "" {
-			skipRange, err := semver.ParseRange(b.SkipRange)
-			if err != nil {
-				return nil, fmt.Errorf("invalid skip range %q for bundle %q: %v", b.SkipRange, b.Name, err)
-			}
-			for _, skipCandidate := range c.Bundles {
-				if skipCandidate == b {
-					continue
-				}
-				version, err := semver.Parse(skipCandidate.Version)
-				if err != nil {
-					return nil, fmt.Errorf("invalid version %q for bundle %q: %v", skipCandidate.SkipRange, skipCandidate.Name, err)
-				}
-				if skipRange(version) {
-					incoming[skipCandidate.Name] += 1
-				}
-			}
 		}
 	}
 	var heads []*Bundle
@@ -195,24 +172,10 @@ type Bundle struct {
 	Package    *Package
 	Channel    *Channel
 	Name       string
-	Version    string
 	Image      string
 	Replaces   string
 	Skips      []string
-	SkipRange  string
 	Properties []Property
-
-	// For convenience of backwards-compat, include ProvidedAPIs in the model.
-	// TODO(joelanford): We can remove this from the model if we're okay with
-	//   parsing properties in the GRPC server code to answer question about
-	//   whether bundles provide certain APIs.
-	ProvidedAPIs []GroupVersionKind
-
-	// TODO(joelanford): we may be able to remove these from the model.
-	//   Need to check to see if their presence here would simplify GRPC
-	//   serving for backwards-compatibility convenience.
-	RequiredAPIs     []GroupVersionKind
-	RequiredPackages []RequiredPackage
 }
 
 func (b *Bundle) Validate() error {
@@ -238,57 +201,18 @@ func (b *Bundle) Validate() error {
 			return fmt.Errorf("invalid property[%d]: %v", i, err)
 		}
 	}
-	for i, rapi := range b.RequiredAPIs {
-		if err := rapi.Validate(); err != nil {
-			return fmt.Errorf("invalid required api [%d]: %v", i, err)
-		}
-	}
-	for i, papi := range b.ProvidedAPIs {
-		if err := papi.Validate(); err != nil {
-			return fmt.Errorf("invalid provided api [%d]: %v", i, err)
-		}
-	}
-	version, err := semver.Parse(b.Version)
-	if err != nil {
-		return fmt.Errorf("invalid version %q: %v", b.Version, err)
-	}
-
-	if b.SkipRange != "" {
-		skipRange, err := semver.ParseRange(b.SkipRange)
-		if err != nil {
-			return fmt.Errorf("invalid skipRange %q: %v", b.SkipRange, err)
-		}
-		if skipRange(version) {
-			return fmt.Errorf("skipRange %q includes bundle's own version %q", b.SkipRange, b.Version)
-		}
-	}
 	// TODO(joelanford): What is the expected presence of skipped CSVs?
 	for i, skip := range b.Skips {
 		if skip == "" {
 			return fmt.Errorf("skip[%d] is empty", i)
 		}
 	}
-
 	// TODO(joelanford): Validate image string as container reference?
 	if b.Image == "" {
 		return fmt.Errorf("image is unset")
 	}
 
-	for i, reqPkg := range b.RequiredPackages {
-		if err := reqPkg.Validate(); err != nil {
-			return fmt.Errorf("invalid required package [%d]: %v", i, err)
-		}
-	}
 	return nil
-}
-
-func (b Bundle) Provides(gvk GroupVersionKind) bool {
-	for _, provided := range b.ProvidedAPIs {
-		if provided.Group == gvk.Group && provided.Version == gvk.Version && provided.Kind == gvk.Kind {
-			return true
-		}
-	}
-	return false
 }
 
 type Property struct {
@@ -302,70 +226,6 @@ func (p Property) Validate() error {
 	}
 	if len(p.Value) == 0 {
 		return errors.New("value must be set")
-	}
-	return nil
-}
-
-type GroupVersionKind struct {
-	Group   string
-	Version string
-	Kind    string
-	Plural  string
-}
-
-const (
-	versionPattern = "^v\\d+(?:alpha\\d+|beta\\d+)?$"
-)
-
-var (
-	versionRegex = regexp.MustCompile(versionPattern)
-)
-
-func (gvk GroupVersionKind) Validate() error {
-	if errs := validation.IsDNS1123Subdomain(gvk.Group); len(errs) != 0 {
-		return fmt.Errorf("invalid group %q: %s", gvk.Group, strings.Join(errs, ", "))
-	}
-
-	// TODO(joelanford): I found an example where this fails validation in an existing index,
-	//   so commenting the regex check out for now, and just checking that it is set. Is the
-	//   regex-based test too strict?
-	//   See: https://github.com/operator-framework/community-operators/blob/ae7a82969500555bab91fc7282ebd3de2e16c8ef/community-operators/percona-server-mongodb-operator/1.4.0/percona-server-mongodb-operator.v1.4.0.clusterserviceversion.yaml#L167
-	//if !versionRegex.MatchString(gvk.Version) {
-	//	return fmt.Errorf("invalid version %q: must match %s", gvk.Version, versionPattern)
-	//}
-	if gvk.Version == "" {
-		return fmt.Errorf("invalid version %q: must not be empty", gvk.Version)
-	}
-
-	if errs := validation.IsDNS1035Label(strings.ToLower(gvk.Kind)); len(errs) != 0 {
-		return fmt.Errorf("invalid kind %q: %s", gvk.Kind, strings.Join(errs, ", "))
-	}
-	// TODO(joelanford): I found an example where this fails validation in an existing index,
-	//   so commenting the uppercase letter check out for now. Seems like something that we
-	//   should catch and prevent though.
-	//if string(gvk.Kind[0]) == strings.ToLower(string(gvk.Kind[0])) {
-	//	return fmt.Errorf("invalid kind %q: must start with an uppercase character", gvk.Kind)
-	//}
-
-	if gvk.Plural != "" {
-		if errs := validation.IsDNS1035Label(gvk.Plural); len(errs) != 0 {
-			return fmt.Errorf("invalid plural %q: %s", gvk.Plural, strings.Join(errs, ", "))
-		}
-	}
-	return nil
-}
-
-type RequiredPackage struct {
-	PackageName  string
-	VersionRange string
-}
-
-func (r RequiredPackage) Validate() error {
-	if r.PackageName == "" {
-		return errors.New("package name must be set")
-	}
-	if _, err := semver.ParseRange(r.VersionRange); err != nil {
-		return fmt.Errorf("invalid version range %q: %v", r.VersionRange, err)
 	}
 	return nil
 }

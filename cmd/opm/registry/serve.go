@@ -193,7 +193,6 @@ func detectRegistrySource(cmd *cobra.Command, args []string) (string, string, er
 		return "", "", errors.New("ambiguous usage: positional argument and --database flag are mutually exclusive")
 	}
 	if len(args) == 0 {
-		// TODO(joelanford): Output a better deprecation warning here (instead of cobra's flag deprecation)?
 		logrus.Warnf("flag --database is deprecated, use a positional argument to define the registry source path")
 		dbPath, err := cmd.Flags().GetString(databaseFlag)
 		if err != nil {

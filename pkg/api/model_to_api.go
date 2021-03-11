@@ -2,51 +2,30 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/operator-framework/operator-registry/pkg/model"
 )
 
-const (
-	apiPropertyTypePackage = "olm.package"
-	apiPropertyTypeGVK     = "olm.gvk"
-
-	apiDependencyTypePackage = "olm.package"
-	apiDependencyTypeGVK     = "olm.gvk"
-
-	propertyTypePackageProvided = "olm.package.provided"
-	propertyTypePackageRequired = "olm.package.required"
-	propertyTypeGVKProvided     = "olm.gvk.provided"
-	propertyTypeGVKRequired     = "olm.gvk.required"
-)
-
-func ConvertModelBundleToAPIBundle(b model.Bundle) *Bundle {
+func ConvertModelBundleToAPIBundle(b model.Bundle) (*Bundle, error) {
+	props, err := parseProperties(b.Properties)
+	if err != nil {
+		return nil, fmt.Errorf("parse properties: %v", err)
+	}
 	return &Bundle{
 		CsvName:      b.Name,
 		PackageName:  b.Package.Name,
 		ChannelName:  b.Channel.Name,
 		BundlePath:   b.Image,
-		ProvidedApis: convertModelGVKsToAPIGVKs(b.ProvidedAPIs),
-		RequiredApis: convertModelGVKsToAPIGVKs(b.RequiredAPIs),
-		Version:      b.Version,
-		SkipRange:    b.SkipRange,
+		ProvidedApis: props.providedGVKs,
+		RequiredApis: props.requiredGVKs,
+		Version:      props.providedPackage.Version,
+		SkipRange:    props.skipRange,
 		Dependencies: convertModelPropertiesToAPIDependencies(b.Properties),
 		Properties:   convertModelPropertiesToAPIProperties(b.Properties),
 		Replaces:     b.Replaces,
 		Skips:        b.Skips,
-	}
-}
-
-func convertModelGVKsToAPIGVKs(gvks []model.GroupVersionKind) []*GroupVersionKind {
-	var out []*GroupVersionKind
-	for _, gvk := range gvks {
-		out = append(out, &GroupVersionKind{
-			Group:   gvk.Group,
-			Version: gvk.Version,
-			Kind:    gvk.Kind,
-			Plural:  gvk.Plural,
-		})
-	}
-	return out
+	}, nil
 }
 
 func convertModelPropertiesToAPIProperties(props []model.Property) []*Property {
@@ -54,27 +33,29 @@ func convertModelPropertiesToAPIProperties(props []model.Property) []*Property {
 	for _, prop := range props {
 		// Remove the "plural" field from GVK properties.
 		value := prop.Value
-		if prop.Type == propertyTypeGVKProvided || prop.Type == propertyTypeGVKRequired {
+		if prop.Type == propertyTypeProvidedGVK || prop.Type == propertyTypeRequiredGVK {
 			value = removePluralFromGVKProperty(value)
 		}
+
+		// Copy property to API Properties list
 		out = append(out, &Property{
 			Type:  prop.Type,
 			Value: string(value),
 		})
 
 		switch prop.Type {
-		case propertyTypeGVKProvided:
+		case propertyTypeProvidedGVK:
 			// For backwards-compatibility, add duplicate property with
 			// type set to "olm.gvk"
 			out = append(out, &Property{
-				Type:  apiPropertyTypeGVK,
+				Type:  apiTypeGVK,
 				Value: string(value),
 			})
-		case propertyTypePackageProvided:
+		case propertyTypeProvidedPackage:
 			// For backwards-compatibility, add duplicate property with
 			// type set to "olm.package"
 			out = append(out, &Property{
-				Type:  apiPropertyTypePackage,
+				Type:  apiTypePackage,
 				Value: string(value),
 			})
 		}
@@ -86,14 +67,14 @@ func convertModelPropertiesToAPIDependencies(props []model.Property) []*Dependen
 	var out []*Dependency
 	for _, prop := range props {
 		switch prop.Type {
-		case propertyTypeGVKRequired:
+		case propertyTypeRequiredGVK:
 			out = append(out, &Dependency{
-				Type:  apiDependencyTypeGVK,
+				Type:  apiTypeGVK,
 				Value: string(removePluralFromGVKProperty(prop.Value)),
 			})
-		case propertyTypePackageRequired:
+		case propertyTypeRequiredPackage:
 			out = append(out, &Dependency{
-				Type:  apiDependencyTypePackage,
+				Type:  apiTypePackage,
 				Value: string(prop.Value),
 			})
 		}

@@ -35,7 +35,11 @@ func (q Querier) ListBundles(_ context.Context) ([]*api.Bundle, error) {
 	for _, pkg := range q.pkgs {
 		for _, ch := range pkg.Channels {
 			for _, b := range ch.Bundles {
-				bundles = append(bundles, api.ConvertModelBundleToAPIBundle(*b))
+				apiBundle, err := api.ConvertModelBundleToAPIBundle(*b)
+				if err != nil {
+					return nil, fmt.Errorf("convert bundle %q: %v", b.Name, err)
+				}
+				bundles = append(bundles, apiBundle)
 			}
 		}
 	}
@@ -79,7 +83,11 @@ func (q Querier) GetBundle(_ context.Context, pkgName, channelName, csvName stri
 	if !ok {
 		return nil, fmt.Errorf("package %q, channel %q, bundle %q not found", pkgName, channelName, csvName)
 	}
-	return api.ConvertModelBundleToAPIBundle(*b), nil
+	apiBundle, err := api.ConvertModelBundleToAPIBundle(*b)
+	if err != nil {
+		return nil, fmt.Errorf("convert bundle %q: %v", b.Name, err)
+	}
+	return apiBundle, nil
 }
 
 func (q Querier) GetBundleForChannel(_ context.Context, pkgName string, channelName string) (*api.Bundle, error) {
@@ -95,7 +103,11 @@ func (q Querier) GetBundleForChannel(_ context.Context, pkgName string, channelN
 	if err != nil {
 		return nil, fmt.Errorf("package %q, channel %q has invalid head: %v", pkgName, channelName, err)
 	}
-	return api.ConvertModelBundleToAPIBundle(*head), nil
+	apiBundle, err := api.ConvertModelBundleToAPIBundle(*head)
+	if err != nil {
+		return nil, fmt.Errorf("convert bundle %q: %v", head.Name, err)
+	}
+	return apiBundle, nil
 }
 
 func (q Querier) GetChannelEntriesThatReplace(_ context.Context, name string) ([]*ChannelEntry, error) {
@@ -133,7 +145,11 @@ func (q Querier) GetBundleThatReplaces(_ context.Context, name, pkgName, channel
 	}
 	for _, b := range ch.Bundles {
 		if b.Replaces == name {
-			return api.ConvertModelBundleToAPIBundle(*b), nil
+			apiBundle, err := api.ConvertModelBundleToAPIBundle(*b)
+			if err != nil {
+				return nil, fmt.Errorf("convert bundle %q: %v", b.Name, err)
+			}
+			return apiBundle, nil
 		}
 	}
 	return nil, fmt.Errorf("no entry found for package %q, channel %q", pkgName, channelName)
@@ -145,7 +161,11 @@ func (q Querier) GetChannelEntriesThatProvide(_ context.Context, group, version,
 	for _, pkg := range q.pkgs {
 		for _, ch := range pkg.Channels {
 			for _, b := range ch.Bundles {
-				if b.Provides(model.GroupVersionKind{Group: group, Version: version, Kind: kind}) {
+				provides, err := doesModelBundleProvide(*b, group, version, kind)
+				if err != nil {
+					return nil, err
+				}
+				if provides {
 					entries = append(entries, &ChannelEntry{
 						PackageName: b.Package.Name,
 						ChannelName: b.Channel.Name,
@@ -179,7 +199,11 @@ func (q Querier) GetLatestChannelEntriesThatProvide(_ context.Context, group, ve
 				return nil, fmt.Errorf("package %q, channel %q has invalid head: %v", pkg.Name, ch.Name, err)
 			}
 
-			if b.Provides(model.GroupVersionKind{Group: group, Version: version, Kind: kind}) {
+			provides, err := doesModelBundleProvide(*b, group, version, kind)
+			if err != nil {
+				return nil, err
+			}
+			if provides {
 				entries = append(entries, &ChannelEntry{
 					PackageName: b.Package.Name,
 					ChannelName: b.Channel.Name,
@@ -220,4 +244,17 @@ func (q Querier) GetBundleThatProvides(ctx context.Context, group, version, kind
 		}
 	}
 	return nil, fmt.Errorf("no entry found that provides group:%q version:%q kind:%q", group, version, kind)
+}
+
+func doesModelBundleProvide(b model.Bundle, group, version, kind string) (bool, error) {
+	apiBundle, err := api.ConvertModelBundleToAPIBundle(b)
+	if err != nil {
+		return false, fmt.Errorf("convert bundle %q: %v", b.Name, err)
+	}
+	for _, gvk := range apiBundle.ProvidedApis {
+		if gvk.Group == group && gvk.Version == version && gvk.Kind == kind {
+			return true, nil
+		}
+	}
+	return false, nil
 }
