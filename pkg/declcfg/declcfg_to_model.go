@@ -84,10 +84,6 @@ func initPackage(pb *packageBundles) (*model.Package, error) {
 		for _, bundleChannel := range bundleProps.channels {
 			pkgChannel, ok := mpkg.Channels[bundleChannel.Name]
 			if !ok {
-				if !p.isValidChannel(bundleChannel.Name) {
-					return nil, fmt.Errorf("bundle %q channel %q is not in package's valid channel names %q",
-						b.Name, bundleChannel.Name, p.ValidChannelNames)
-				}
 				pkgChannel = &model.Channel{
 					Package: mpkg,
 					Name:    bundleChannel.Name,

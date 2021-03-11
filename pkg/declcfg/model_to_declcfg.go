@@ -7,7 +7,7 @@ import (
 func ConvertFromModel(mpkgs model.Model) DeclarativeConfig {
 	cfg := DeclarativeConfig{}
 	for _, mpkg := range mpkgs {
-		channels, bundles := traverseModelChannels(*mpkg)
+		bundles := traverseModelChannels(*mpkg)
 
 		var i *icon
 		if mpkg.Icon != nil {
@@ -17,27 +17,22 @@ func ConvertFromModel(mpkgs model.Model) DeclarativeConfig {
 			}
 		}
 		cfg.Packages = append(cfg.Packages, pkg{
-			Schema:            schemaPackage,
-			Name:              mpkg.Name,
-			DefaultChannel:    mpkg.DefaultChannel.Name,
-			Icon:              i,
-			ValidChannelNames: channels,
-			Description:       mpkg.Description,
+			Schema:         schemaPackage,
+			Name:           mpkg.Name,
+			DefaultChannel: mpkg.DefaultChannel.Name,
+			Icon:           i,
+			Description:    mpkg.Description,
 		})
 		cfg.Bundles = append(cfg.Bundles, bundles...)
 	}
 	return cfg
 }
 
-func traverseModelChannels(mpkg model.Package) ([]string, []bundle) {
-	var (
-		channels []string
-		bundles  []bundle
-	)
+func traverseModelChannels(mpkg model.Package) []bundle {
+	var bundles []bundle
 	bundleNames := map[string]struct{}{}
 
 	for _, ch := range mpkg.Channels {
-		channels = append(channels, ch.Name)
 		for _, chb := range ch.Bundles {
 			_, ok := bundleNames[chb.Name]
 			if ok {
@@ -55,7 +50,7 @@ func traverseModelChannels(mpkg model.Package) ([]string, []bundle) {
 			})
 		}
 	}
-	return channels, bundles
+	return bundles
 }
 
 func modelPropertiesToProperties(props []model.Property) []property {
