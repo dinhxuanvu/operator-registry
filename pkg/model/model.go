@@ -43,6 +43,10 @@ func (m *Package) Validate() error {
 		}
 	}
 
+	if len(m.Channels) == 0 {
+		return fmt.Errorf("package must contain at least one channel")
+	}
+
 	if m.DefaultChannel == nil {
 		return fmt.Errorf("default channel must be set")
 	}
@@ -148,6 +152,10 @@ func (c *Channel) Validate() error {
 
 	if c.Package == nil {
 		return errors.New("package must be set")
+	}
+
+	if len(c.Bundles) == 0 {
+		return fmt.Errorf("channel must contain at least one bundle")
 	}
 
 	if _, err := c.Head(); err != nil {

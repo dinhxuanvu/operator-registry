@@ -1,6 +1,8 @@
 package declcfg
 
 import (
+	"sort"
+
 	"github.com/operator-framework/operator-registry/pkg/model"
 )
 
@@ -25,6 +27,14 @@ func ConvertFromModel(mpkgs model.Model) DeclarativeConfig {
 		})
 		cfg.Bundles = append(cfg.Bundles, bundles...)
 	}
+
+	sort.Slice(cfg.Packages, func(i, j int) bool {
+		return cfg.Packages[i].Name < cfg.Packages[j].Name
+	})
+	sort.Slice(cfg.Bundles, func(i, j int) bool {
+		return cfg.Bundles[i].Name < cfg.Bundles[j].Name
+	})
+
 	return cfg
 }
 

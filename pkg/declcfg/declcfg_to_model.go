@@ -12,22 +12,19 @@ type packageBundles struct {
 	props   map[string]*properties
 }
 
-func ConvertToModel(cfg *DeclarativeConfig) (model.Model, error) {
+func ConvertToModel(cfg DeclarativeConfig) (model.Model, error) {
 	pbs, err := buildPackageBundles(cfg)
 	if err != nil {
 		return nil, err
 	}
-	mpkgs, err := initPackages(pbs)
-	if err != nil {
-		return nil, err
-	}
+	mpkgs := initPackages(pbs)
 	if err := mpkgs.Validate(); err != nil {
 		return nil, err
 	}
 	return mpkgs, nil
 }
 
-func buildPackageBundles(cfg *DeclarativeConfig) (map[string]*packageBundles, error) {
+func buildPackageBundles(cfg DeclarativeConfig) (map[string]*packageBundles, error) {
 	pbs := map[string]*packageBundles{}
 
 	for _, p := range cfg.Packages {
@@ -53,19 +50,15 @@ func buildPackageBundles(cfg *DeclarativeConfig) (map[string]*packageBundles, er
 	return pbs, nil
 }
 
-func initPackages(pbs map[string]*packageBundles) (model.Model, error) {
+func initPackages(pbs map[string]*packageBundles) model.Model {
 	mpkgs := model.Model{}
 	for _, pb := range pbs {
-		mpkg, err := initPackage(pb)
-		if err != nil {
-			return nil, fmt.Errorf("initialize model package %q: %v", pb.p.Name, err)
-		}
-		mpkgs[pb.p.Name] = mpkg
+		mpkgs[pb.p.Name] = initPackage(pb)
 	}
-	return mpkgs, nil
+	return mpkgs
 }
 
-func initPackage(pb *packageBundles) (*model.Package, error) {
+func initPackage(pb *packageBundles) *model.Package {
 	p, bundles, props := pb.p, pb.bundles, pb.props
 	mpkg := &model.Package{
 		Name:        p.Name,
@@ -106,7 +99,16 @@ func initPackage(pb *packageBundles) (*model.Package, error) {
 			}
 		}
 	}
-	return mpkg, nil
+	if mpkg.DefaultChannel == nil {
+		dch := &model.Channel{
+			Package: mpkg,
+			Name:    p.DefaultChannel,
+			Bundles: nil,
+		}
+		mpkg.DefaultChannel = dch
+		mpkg.Channels[dch.Name] = dch
+	}
+	return mpkg
 }
 
 func propertiesToModelProperties(in []property) []model.Property {

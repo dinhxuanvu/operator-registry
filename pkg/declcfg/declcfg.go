@@ -70,7 +70,7 @@ func LoadFile(configFile string) (*DeclarativeConfig, error) {
 			}
 			cfg.Bundles = append(cfg.Bundles, b)
 		default:
-			return nil, fmt.Errorf("unrecognized schema at offset %d", dec.InputOffset())
+			return nil, fmt.Errorf("unrecognized schema %q at offset %d", in.Schema, dec.InputOffset())
 		}
 	}
 	return cfg, nil

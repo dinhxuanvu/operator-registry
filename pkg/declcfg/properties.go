@@ -38,6 +38,8 @@ func parseProperties(props []property) (*properties, error) {
 		ps properties
 		pp *providedPackage
 	)
+
+	channels := map[string]struct{}{}
 	for i, prop := range props {
 		switch prop.Type {
 		case propertyTypeChannel:
@@ -45,6 +47,10 @@ func parseProperties(props []property) (*properties, error) {
 			if err := json.Unmarshal(prop.Value, &p); err != nil {
 				return nil, propertyParseError{i: i, t: prop.Type, err: err}
 			}
+			if _, ok := channels[p.Name]; ok {
+				return nil, propertyDuplicateError{i: i, t: prop.Type, key: p.Name}
+			}
+			channels[p.Name] = struct{}{}
 			ps.channels = append(ps.channels, p)
 		case propertyTypeSkips:
 			var p string
@@ -64,9 +70,10 @@ func parseProperties(props []property) (*properties, error) {
 		}
 	}
 	if pp == nil {
-		return nil, fmt.Errorf("required property %q not found", propertyTypeProvidedPackage)
+		return nil, propertyNotFoundError{t: propertyTypeProvidedPackage}
 	}
 	ps.providedPackage = *pp
+
 	return &ps, nil
 }
 
@@ -87,4 +94,22 @@ type propertyMultipleNotAllowedError struct {
 
 func (e propertyMultipleNotAllowedError) Error() string {
 	return fmt.Sprintf("properties[%d]: multiple properties of type %q not allowed", e.i, e.t)
+}
+
+type propertyNotFoundError struct {
+	t string
+}
+
+func (e propertyNotFoundError) Error() string {
+	return fmt.Sprintf("required property of type %q not found", e.t)
+}
+
+type propertyDuplicateError struct {
+	i   int
+	t   string
+	key string
+}
+
+func (e propertyDuplicateError) Error() string {
+	return fmt.Sprintf("properties[%d]: duplicate property of type %q found with key %q", e.i, e.t, e.key)
 }
