@@ -22,7 +22,7 @@ const (
 
 type channel struct {
 	Name     string `json:"name"`
-	Replaces string `json:"replaces"`
+	Replaces string `json:"replaces,omitempty"`
 }
 
 type providedPackage struct {
