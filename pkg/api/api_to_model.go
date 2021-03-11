@@ -103,6 +103,9 @@ func convertAPIBundleToModelProperties(b *Bundle) ([]model.Property, error) {
 
 	if !foundGVKProperty {
 		for _, p := range b.ProvidedApis {
+			// TODO(joelanford): It's a little hard to tell where the plural field is expected
+			//   and where it isn't. What clients expect the `plural` field in GVKs and in which
+			//   fields of the API?
 			p.Plural = ""
 			gvkJson, err := json.Marshal(p)
 			if err != nil {

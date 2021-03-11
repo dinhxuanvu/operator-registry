@@ -31,6 +31,9 @@ func ConvertModelBundleToAPIBundle(b model.Bundle) (*Bundle, error) {
 func convertModelPropertiesToAPIProperties(props []model.Property) []*Property {
 	var out []*Property
 	for _, prop := range props {
+		// TODO(joelanford): It's a little hard to tell where the plural field is expected
+		//   and where it isn't. What clients expect the `plural` field in GVKs and in which
+		//   fields of the API?
 		// Remove the "plural" field from GVK properties.
 		value := prop.Value
 		if prop.Type == propertyTypeProvidedGVK || prop.Type == propertyTypeRequiredGVK {
@@ -42,23 +45,6 @@ func convertModelPropertiesToAPIProperties(props []model.Property) []*Property {
 			Type:  prop.Type,
 			Value: string(value),
 		})
-
-		switch prop.Type {
-		case propertyTypeProvidedGVK:
-			// For backwards-compatibility, add duplicate property with
-			// type set to "olm.gvk"
-			out = append(out, &Property{
-				Type:  apiTypeGVK,
-				Value: string(value),
-			})
-		case propertyTypeProvidedPackage:
-			// For backwards-compatibility, add duplicate property with
-			// type set to "olm.package"
-			out = append(out, &Property{
-				Type:  apiTypePackage,
-				Value: string(value),
-			})
-		}
 	}
 	return out
 }
