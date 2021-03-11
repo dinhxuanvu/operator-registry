@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 
@@ -36,13 +37,17 @@ func convertAPIBundleToModelProperties(b *Bundle) ([]model.Property, error) {
 	}
 
 	if b.SkipRange != "" {
-		skipRangeJson, err := json.Marshal(b.SkipRange)
+		// Use a JSON encoder so we can disable HTML escaping.
+		buf := &bytes.Buffer{}
+		enc := json.NewEncoder(buf)
+		enc.SetEscapeHTML(false)
+		err := enc.Encode(b.SkipRange)
 		if err != nil {
 			return nil, fmt.Errorf("marshal %q property %q: %v", propertyTypeSkipRange, b.SkipRange, err)
 		}
 		out = append(out, model.Property{
 			Type:  propertyTypeSkipRange,
-			Value: skipRangeJson,
+			Value: buf.Bytes(),
 		})
 	}
 

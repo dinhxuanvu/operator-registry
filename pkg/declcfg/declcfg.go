@@ -118,6 +118,7 @@ func WriteFile(cfg DeclarativeConfig, configFile string) error {
 	defer f.Close()
 	enc := json.NewEncoder(f)
 	enc.SetIndent("", "    ")
+	enc.SetEscapeHTML(false)
 
 	bundlesByPackage := map[string][]bundle{}
 	for _, b := range cfg.Bundles {
