@@ -185,7 +185,15 @@ func (s *serve) loadDBStore(ctx context.Context, source string) (registry.GRPCQu
 	if len(tables) == 0 {
 		s.logger.Warn("no tables found in db")
 	}
-	return dbStore, nil
+
+	if s.skipMigrate {
+		return dbStore, nil
+	}
+
+	if err := migrateDBToDeclarativeConfig(ctx, s.database, dbStore); err != nil {
+		return nil, fmt.Errorf("failed to migrate DB to declarative configs: %v", err)
+	}
+	return s.loadDeclarativeConfigStore()
 }
 
 func (s serve) migrate(ctx context.Context, db *sql.DB) error {
@@ -198,4 +206,16 @@ func (s serve) migrate(ctx context.Context, db *sql.DB) error {
 	}
 
 	return migrator.Migrate(ctx)
+}
+
+func migrateDBToDeclarativeConfig(ctx context.Context, dest string, source *sqlite.SQLQuerier) error {
+	m, err := sqlite.ToModel(ctx, source)
+	if err != nil {
+		return err
+	}
+	if err := os.RemoveAll(dest); err != nil {
+		return err
+	}
+	cfg := declcfg.ConvertFromModel(m)
+	return declcfg.WriteFile(cfg, dest)
 }
