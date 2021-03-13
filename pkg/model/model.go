@@ -7,18 +7,26 @@ import (
 	"strings"
 
 	"github.com/h2non/filetype"
+	"github.com/h2non/filetype/matchers"
+	"github.com/h2non/filetype/types"
 	svg "github.com/h2non/go-is-svg"
 )
+
+func init() {
+	t := types.NewType("svg", "image/svg+xml")
+	filetype.AddMatcher(t, svg.Is)
+	matchers.Image[types.NewType("svg", "image/svg+xml")] = svg.Is
+}
 
 type Model map[string]*Package
 
 func (m Model) Validate() error {
 	for name, pkg := range m {
-		if err := pkg.Validate(); err != nil {
-			return fmt.Errorf("invalid package %q: %v", pkg.Name, err)
-		}
 		if name != pkg.Name {
 			return fmt.Errorf("package key %q does not match package name %q", name, pkg.Name)
+		}
+		if err := pkg.Validate(); err != nil {
+			return fmt.Errorf("invalid package %q: %v", pkg.Name, err)
 		}
 	}
 	return nil
@@ -37,10 +45,8 @@ func (m *Package) Validate() error {
 		return errors.New("package name must not be empty")
 	}
 
-	if m.Icon != nil {
-		if err := m.Icon.Validate(); err != nil {
-			return fmt.Errorf("invalid icon: %v", err)
-		}
+	if err := m.Icon.Validate(); err != nil {
+		return fmt.Errorf("invalid icon: %v", err)
 	}
 
 	if len(m.Channels) == 0 {
@@ -53,6 +59,9 @@ func (m *Package) Validate() error {
 
 	foundDefault := false
 	for name, ch := range m.Channels {
+		if name != ch.Name {
+			return fmt.Errorf("channel key %q does not match channel name %q", name, ch.Name)
+		}
 		if err := ch.Validate(); err != nil {
 			return fmt.Errorf("invalid channel %q: %v", ch.Name, err)
 		}
@@ -61,9 +70,6 @@ func (m *Package) Validate() error {
 		}
 		if ch.Package != m {
 			return fmt.Errorf("channel %q not correctly linked to parent package", ch.Name)
-		}
-		if name != ch.Name {
-			return fmt.Errorf("channel key %q does not match channel name %q", name, ch.Name)
 		}
 	}
 
@@ -79,8 +85,14 @@ type Icon struct {
 }
 
 func (i *Icon) Validate() error {
+	if i == nil {
+		return nil
+	}
 	if len(i.Data) == 0 {
 		return errors.New("icon data must be set if icon is defined")
+	}
+	if len(i.MediaType) == 0 {
+		return errors.New("icon mediatype must be set if icon is defined")
 	}
 	// TODO(joelanford): Should we detect the media type of the data and
 	//   compare it to the mediatype listed in the icon field?
@@ -88,12 +100,6 @@ func (i *Icon) Validate() error {
 }
 
 func (i *Icon) validateData() error {
-	if i.MediaType == "image/svg+xml" {
-		if !svg.IsSVG(i.Data) {
-			return fmt.Errorf("icon media type %q does not match data", i.MediaType)
-		}
-		return nil
-	}
 	if !filetype.IsImage(i.Data) {
 		return errors.New("icon data is not an image")
 	}
@@ -163,14 +169,14 @@ func (c *Channel) Validate() error {
 	}
 
 	for name, b := range c.Bundles {
+		if name != b.Name {
+			return fmt.Errorf("bundle key %q does not match bundle name %q", name, b.Name)
+		}
 		if err := b.Validate(); err != nil {
 			return fmt.Errorf("invalid bundle %q: %v", b.Name, err)
 		}
 		if b.Channel != c {
 			return fmt.Errorf("bundle %q not correctly linked to parent channel", b.Name)
-		}
-		if name != b.Name {
-			return fmt.Errorf("bundle key %q does not match bundle name %q", name, b.Name)
 		}
 	}
 	return nil
@@ -232,8 +238,14 @@ func (p Property) Validate() error {
 	if p.Type == "" {
 		return errors.New("type must be set")
 	}
+
 	if len(p.Value) == 0 {
 		return errors.New("value must be set")
+	}
+
+	var v json.RawMessage
+	if err := json.Unmarshal(p.Value, &v); err != nil {
+		return fmt.Errorf("invalid value: %v", err)
 	}
 	return nil
 }
