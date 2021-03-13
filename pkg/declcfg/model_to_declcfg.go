@@ -39,28 +39,32 @@ func ConvertFromModel(mpkgs model.Model) DeclarativeConfig {
 }
 
 func traverseModelChannels(mpkg model.Package) []bundle {
-	var bundles []bundle
-	bundleNames := map[string]struct{}{}
+	bundles := map[string]*bundle{}
 
 	for _, ch := range mpkg.Channels {
 		for _, chb := range ch.Bundles {
-			_, ok := bundleNames[chb.Name]
-			if ok {
-				continue
-			}
-			bundleNames[chb.Name] = struct{}{}
-			bundles = append(bundles, bundle{
-				Schema:     schemaBundle,
-				Name:       chb.Name,
-				Image:      chb.Image,
-				Properties: modelPropertiesToProperties(chb.Properties),
+			b, ok := bundles[chb.Name]
+			if !ok {
+				b = &bundle{
+					Schema: schemaBundle,
+					Name:   chb.Name,
+					Image:  chb.Image,
 
-				// TODO(joelanford): Should related images be included in the model?,
-				RelatedImages: nil,
-			})
+					// TODO(joelanford): Should related images be included in the model?,
+					RelatedImages: nil,
+				}
+				bundles[b.Name] = b
+			}
+			b.Properties = append(b.Properties, modelPropertiesToProperties(chb.Properties)...)
 		}
 	}
-	return bundles
+
+	var out []bundle
+	for _, b := range bundles {
+		b.Properties = deduplicateProperties(b.Properties)
+		out = append(out, *b)
+	}
+	return out
 }
 
 func modelPropertiesToProperties(props []model.Property) []property {
@@ -70,6 +74,25 @@ func modelPropertiesToProperties(props []model.Property) []property {
 			Type:  p.Type,
 			Value: p.Value,
 		})
+	}
+	return out
+}
+
+func deduplicateProperties(in []property) []property {
+	type key struct {
+		typ   string
+		value string
+	}
+
+	props := map[key]property{}
+	var out []property
+	for _, p := range in {
+		k := key{p.Type, string(p.Value)}
+		if _, ok := props[k]; ok {
+			continue
+		}
+		props[k] = p
+		out = append(out, p)
 	}
 	return out
 }

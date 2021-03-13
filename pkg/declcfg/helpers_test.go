@@ -189,8 +189,6 @@ func buildAnakinPkgModel() *model.Package {
 				Type:  propertyTypeChannel,
 				Value: channelPropertyValue(channel.Name, channel.Replaces),
 			})
-		}
-		for _, channel := range channels {
 			ch := pkg.Channels[channel.Name]
 			bName := testBundleName(pkgName, version)
 			bImage := testBundleImage(pkgName, version)
