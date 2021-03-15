@@ -31,8 +31,6 @@ import (
 )
 
 const (
-	databaseFlag = "database"
-
 	modeSqlite  = "sqlite"
 	modeDeclCfg = "declcfg"
 )
@@ -54,7 +52,7 @@ func newRegistryServeCmd() *cobra.Command {
 	}
 
 	rootCmd.Flags().Bool("debug", false, "enable debug logging")
-	rootCmd.Flags().StringP(databaseFlag, "d", "bundles.db", "relative path to sqlite db")
+	rootCmd.Flags().StringP("database", "d", "bundles.db", "relative path to sqlite db")
 	rootCmd.Flags().StringP("port", "p", "50051", "port number to serve on")
 	rootCmd.Flags().StringP("termination-log", "t", "/dev/termination-log", "path to a container termination log file")
 	rootCmd.Flags().Bool("skip-migrate", false, "do  not attempt to migrate to the latest db revision when starting")
@@ -189,12 +187,12 @@ func serveFunc(cmd *cobra.Command, args []string) error {
 }
 
 func detectRegistrySource(cmd *cobra.Command, args []string) (string, string, error) {
-	if len(args) > 0 && cmd.Flag(databaseFlag).Changed {
+	if len(args) > 0 && cmd.Flag("database").Changed {
 		return "", "", errors.New("ambiguous usage: positional argument and --database flag are mutually exclusive")
 	}
 	if len(args) == 0 {
 		logrus.Warnf("flag --database is deprecated, use a positional argument to define the registry source path")
-		dbPath, err := cmd.Flags().GetString(databaseFlag)
+		dbPath, err := cmd.Flags().GetString("database")
 		if err != nil {
 			return "", "", err
 		}
