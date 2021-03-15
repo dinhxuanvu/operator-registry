@@ -11,13 +11,13 @@ func TestConvertToModel(t *testing.T) {
 	type spec struct {
 		name      string
 		cfg       DeclarativeConfig
-		expectErr bool
+		assertion require.ErrorAssertionFunc
 	}
 
 	specs := []spec{
 		{
 			name:      "Error/BundleMissingProvidedPackage",
-			expectErr: true,
+			assertion: require.Error,
 			cfg: DeclarativeConfig{
 				Packages: []pkg{newTestPackage("foo", "alpha", svgSmallCircle)},
 				Bundles:  []bundle{newTestBundle("foo", "0.1.0", skipProvidedPackage())},
@@ -25,7 +25,7 @@ func TestConvertToModel(t *testing.T) {
 		},
 		{
 			name:      "Error/BundleUnknownPackage",
-			expectErr: true,
+			assertion: require.Error,
 			cfg: DeclarativeConfig{
 				Packages: []pkg{newTestPackage("foo", "alpha", svgSmallCircle)},
 				Bundles:  []bundle{newTestBundle("bar", "0.1.0")},
@@ -33,14 +33,15 @@ func TestConvertToModel(t *testing.T) {
 		},
 		{
 			name:      "Error/FailedModelValidation",
-			expectErr: true,
+			assertion: require.Error,
 			cfg: DeclarativeConfig{
 				Packages: []pkg{newTestPackage("foo", "alpha", svgSmallCircle)},
 				Bundles:  []bundle{newTestBundle("foo", "0.1.0")},
 			},
 		},
 		{
-			name: "Success/ValidModel",
+			name:      "Success/ValidModel",
+			assertion: require.NoError,
 			cfg: DeclarativeConfig{
 				Packages: []pkg{newTestPackage("foo", "alpha", svgSmallCircle)},
 				Bundles:  []bundle{newTestBundle("foo", "0.1.0", withChannel("alpha", ""))},
@@ -51,20 +52,15 @@ func TestConvertToModel(t *testing.T) {
 	for _, s := range specs {
 		t.Run(s.name, func(t *testing.T) {
 			_, err := ConvertToModel(s.cfg)
-			if s.expectErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
+			s.assertion(t, err)
 		})
 	}
 }
 
 func TestConvertToModelRoundtrip(t *testing.T) {
-	in := buildValidDeclarativeConfig()
 	expected := buildValidDeclarativeConfig()
 
-	m, err := ConvertToModel(in)
+	m, err := ConvertToModel(expected)
 	require.NoError(t, err)
 	actual := ConvertFromModel(m)
 

@@ -9,10 +9,10 @@ import (
 
 func TestParseProperties(t *testing.T) {
 	type spec struct {
-		name        string
-		properties  []property
-		expectErr   error
-		expectProps *properties
+		name          string
+		properties    []property
+		expectErrType error
+		expectProps   *properties
 	}
 
 	specs := []spec{
@@ -21,21 +21,21 @@ func TestParseProperties(t *testing.T) {
 			properties: []property{
 				{Type: propertyTypeChannel, Value: json.RawMessage(`""`)},
 			},
-			expectErr: propertyParseError{},
+			expectErrType: propertyParseError{},
 		},
 		{
 			name: "Error/InvalidSkips",
 			properties: []property{
 				{Type: propertyTypeSkips, Value: json.RawMessage(`{}`)},
 			},
-			expectErr: propertyParseError{},
+			expectErrType: propertyParseError{},
 		},
 		{
 			name: "Error/InvalidProvidedPackage",
 			properties: []property{
 				{Type: propertyTypeProvidedPackage, Value: json.RawMessage(`""`)},
 			},
-			expectErr: propertyParseError{},
+			expectErrType: propertyParseError{},
 		},
 		{
 			name: "Error/DuplicateChannels",
@@ -44,7 +44,7 @@ func TestParseProperties(t *testing.T) {
 				channelProperty("beta", "foo.v0.0.3"),
 				channelProperty("alpha", "foo.v0.0.4"),
 			},
-			expectErr: propertyDuplicateError{},
+			expectErrType: propertyDuplicateError{},
 		},
 		{
 			name: "Error/MultipleProvidedPackages",
@@ -52,11 +52,11 @@ func TestParseProperties(t *testing.T) {
 				providedPackageProperty("foo", "0.1.0"),
 				providedPackageProperty("bar", "0.1.0"),
 			},
-			expectErr: propertyMultipleNotAllowedError{},
+			expectErrType: propertyMultipleNotAllowedError{},
 		},
 		{
-			name:      "Error/NoProvidedPackage",
-			expectErr: propertyNotFoundError{},
+			name:          "Error/NoProvidedPackage",
+			expectErrType: propertyNotFoundError{},
 		},
 		{
 			name: "Success/Valid",
@@ -81,8 +81,8 @@ func TestParseProperties(t *testing.T) {
 	for _, s := range specs {
 		t.Run(s.name, func(t *testing.T) {
 			props, err := parseProperties(s.properties)
-			if s.expectErr != nil {
-				assert.IsType(t, s.expectErr, err)
+			if s.expectErrType != nil {
+				assert.IsType(t, s.expectErrType, err)
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, s.expectProps, props)

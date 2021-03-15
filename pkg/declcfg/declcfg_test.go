@@ -16,7 +16,7 @@ func TestLoadFile(t *testing.T) {
 	type spec struct {
 		name              string
 		file              string
-		expectErr         bool
+		assertion         require.ErrorAssertionFunc
 		expectNumPackages int
 		expectNumBundles  int
 	}
@@ -24,36 +24,37 @@ func TestLoadFile(t *testing.T) {
 		{
 			name:      "Error/NonExistentFile",
 			file:      "testdata/invalid/non-existent.json",
-			expectErr: true,
+			assertion: require.Error,
 		},
 		{
 			name:      "Error/NotJSON",
 			file:      "testdata/invalid/not-json.txt",
-			expectErr: true,
+			assertion: require.Error,
 		},
 		{
 			name:      "Error/NotJSONObject",
 			file:      "testdata/invalid/not-json-object.json",
-			expectErr: true,
+			assertion: require.Error,
 		},
 		{
 			name:      "Error/UnrecognizedSchema",
 			file:      "testdata/invalid/unrecognized-schema.json",
-			expectErr: true,
+			assertion: require.Error,
 		},
 		{
 			name:      "Error/InvalidPackageJSON",
 			file:      "testdata/invalid/invalid-package-json.json",
-			expectErr: true,
+			assertion: require.Error,
 		},
 		{
 			name:      "Error/InvalidPackageJSON",
 			file:      "testdata/invalid/invalid-bundle-json.json",
-			expectErr: true,
+			assertion: require.Error,
 		},
 		{
 			name:              "Success/ValidFile",
 			file:              "testdata/valid/etcd.json",
+			assertion:         require.NoError,
 			expectNumPackages: 1,
 			expectNumBundles:  6,
 		},
@@ -62,11 +63,8 @@ func TestLoadFile(t *testing.T) {
 	for _, s := range specs {
 		t.Run(s.name, func(t *testing.T) {
 			cfg, err := LoadFile(s.file)
-			if s.expectErr {
-				assert.Error(t, err)
-				assert.Nil(t, cfg)
-			} else {
-				assert.NoError(t, err)
+			s.assertion(t, err)
+			if err == nil {
 				require.NotNil(t, cfg)
 				assert.Equal(t, len(cfg.Packages), s.expectNumPackages, "unexpected package count")
 				assert.Equal(t, len(cfg.Bundles), s.expectNumBundles, "unexpected bundle count")
@@ -79,7 +77,7 @@ func TestLoadDir(t *testing.T) {
 	type spec struct {
 		name              string
 		dir               string
-		expectErr         bool
+		assertion         require.ErrorAssertionFunc
 		expectNumPackages int
 		expectNumBundles  int
 	}
@@ -87,16 +85,17 @@ func TestLoadDir(t *testing.T) {
 		{
 			name:      "Error/NonExistentDir",
 			dir:       "testdata/nonexistent",
-			expectErr: true,
+			assertion: require.Error,
 		},
 		{
 			name:      "Error/Invalid",
 			dir:       "testdata/invalid",
-			expectErr: true,
+			assertion: require.Error,
 		},
 		{
 			name:              "Success/ValidDir",
 			dir:               "testdata/valid",
+			assertion:         require.NoError,
 			expectNumPackages: 2,
 			expectNumBundles:  11,
 		},
@@ -105,11 +104,8 @@ func TestLoadDir(t *testing.T) {
 	for _, s := range specs {
 		t.Run(s.name, func(t *testing.T) {
 			cfg, err := LoadDir(s.dir)
-			if s.expectErr {
-				assert.Error(t, err)
-				assert.Nil(t, cfg)
-			} else {
-				assert.NoError(t, err)
+			s.assertion(t, err)
+			if err == nil {
 				require.NotNil(t, cfg)
 				assert.Equal(t, len(cfg.Packages), s.expectNumPackages, "unexpected package count")
 				assert.Equal(t, len(cfg.Bundles), s.expectNumBundles, "unexpected bundle count")
@@ -123,7 +119,7 @@ func TestWriteDir(t *testing.T) {
 		name      string
 		cfg       DeclarativeConfig
 		setupDir  func() (string, error)
-		expectErr bool
+		assertion require.ErrorAssertionFunc
 	}
 	setupNonExistentDir := func() (string, error) { return filepath.Join(os.TempDir(), "decl-write-dir-"+rand.String(5)), nil }
 	setupEmptyDir := func() (string, error) { return ioutil.TempDir("", "decl-write-dir-") }
@@ -147,32 +143,34 @@ func TestWriteDir(t *testing.T) {
 
 	specs := []spec{
 		{
-			name:     "Success/NonExistentDir",
-			cfg:      buildValidDeclarativeConfig(),
-			setupDir: setupNonExistentDir,
+			name:      "Success/NonExistentDir",
+			cfg:       buildValidDeclarativeConfig(),
+			setupDir:  setupNonExistentDir,
+			assertion: require.NoError,
 		},
 		{
-			name:     "Success/EmptyDir",
-			cfg:      buildValidDeclarativeConfig(),
-			setupDir: setupEmptyDir,
+			name:      "Success/EmptyDir",
+			cfg:       buildValidDeclarativeConfig(),
+			setupDir:  setupEmptyDir,
+			assertion: require.NoError,
 		},
 		{
 			name:      "Error/MissingProvidedPackage",
 			cfg:       buildInvalidDeclarativeConfig(),
 			setupDir:  setupEmptyDir,
-			expectErr: true,
+			assertion: require.Error,
 		},
 		{
 			name:      "Error/NotADir",
 			cfg:       buildValidDeclarativeConfig(),
 			setupDir:  setupFile,
-			expectErr: true,
+			assertion: require.Error,
 		},
 		{
 			name:      "Error/NonEmptyDir",
 			cfg:       buildValidDeclarativeConfig(),
 			setupDir:  setupNonEmptyDir,
-			expectErr: true,
+			assertion: require.Error,
 		},
 	}
 
@@ -185,10 +183,8 @@ func TestWriteDir(t *testing.T) {
 			}()
 
 			err = WriteDir(s.cfg, testDir)
-			if s.expectErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
+			s.assertion(t, err)
+			if err == nil {
 				files, err := ioutil.ReadDir(testDir)
 				require.NoError(t, err)
 				require.Equal(t, len(files), 2, "expect two package files")
@@ -206,7 +202,7 @@ func TestWriteFile(t *testing.T) {
 		name      string
 		cfg       DeclarativeConfig
 		setupFile func() (string, error)
-		expectErr bool
+		assertion require.ErrorAssertionFunc
 	}
 
 	getFilename := func() (string, error) {
@@ -221,18 +217,19 @@ func TestWriteFile(t *testing.T) {
 			name:      "Success/NonExistentFile",
 			cfg:       buildValidDeclarativeConfig(),
 			setupFile: getFilename,
+			assertion: require.NoError,
 		},
 		{
 			name:      "Error/NotAFile",
 			cfg:       buildValidDeclarativeConfig(),
 			setupFile: getDirectory,
-			expectErr: true,
+			assertion: require.Error,
 		},
 		{
 			name:      "Error/MissingProvidedPackage",
 			cfg:       buildInvalidDeclarativeConfig(),
 			setupFile: getFilename,
-			expectErr: true,
+			assertion: require.Error,
 		},
 	}
 	for _, s := range specs {
@@ -243,10 +240,8 @@ func TestWriteFile(t *testing.T) {
 				require.NoError(t, os.RemoveAll(filename))
 			}()
 			err = WriteFile(s.cfg, filename)
-			if s.expectErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
+			s.assertion(t, err)
+			if err == nil {
 				_, err = LoadFile(filename)
 				assert.NoError(t, err)
 			}
