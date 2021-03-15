@@ -39,7 +39,7 @@ func newRegistryServeCmd() *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:   "serve <source_path>",
 		Short: "serve an operator-registry source",
-		Long:  `serve an operator-registry source that is queriable using grpc`,
+		Long:  `serve an operator-registry source that is queryable using grpc`,
 		Args:  cobra.MaximumNArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if debug, _ := cmd.Flags().GetBool("debug"); debug {
@@ -100,7 +100,7 @@ func serveFunc(cmd *cobra.Command, args []string) error {
 			err error
 		)
 		if s, sErr := os.Stat(source); sErr != nil {
-			return err
+			return sErr
 		} else if s.IsDir() {
 			cfg, err = declcfg.LoadDir(source)
 		} else {
