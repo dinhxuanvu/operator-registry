@@ -1,6 +1,7 @@
 package model
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -248,4 +249,28 @@ func (p Property) Validate() error {
 		return fmt.Errorf("invalid value: %v", err)
 	}
 	return nil
+}
+
+func (m Model) Normalize() {
+	for _, pkg := range m {
+		for _, ch := range pkg.Channels {
+			for _, b := range ch.Bundles {
+				for i := range b.Properties {
+					b.Properties[i].Value = encodeValue(b.Properties[i].Value)
+				}
+			}
+		}
+	}
+}
+
+func encodeValue(in json.RawMessage) json.RawMessage {
+	valueBuf := &bytes.Buffer{}
+	enc := json.NewEncoder(valueBuf)
+	enc.SetEscapeHTML(false)
+	enc.SetIndent("", "")
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(in); err != nil {
+		return in
+	}
+	return json.RawMessage(strings.TrimSpace(valueBuf.String()))
 }

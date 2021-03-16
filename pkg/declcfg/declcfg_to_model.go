@@ -21,6 +21,7 @@ func ConvertToModel(cfg DeclarativeConfig) (model.Model, error) {
 	if err := mpkgs.Validate(); err != nil {
 		return nil, err
 	}
+	mpkgs.Normalize()
 	return mpkgs, nil
 }
 
