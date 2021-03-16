@@ -92,9 +92,15 @@ func (s *serve) run(ctx context.Context) error {
 	)
 	switch dbMode {
 	case mode.ModeDeclarativeConfig:
-		store, storeErr = s.loadDeclarativeConfigStore()
+		store, storeErr = s.loadDeclarativeConfigStore(s.database)
 	case mode.ModeSqlite:
-		store, storeErr = s.loadDBStore(ctx)
+		// make a writable copy of the db for migrations
+		tmpdb, err := tmp.CopyTmpDB(s.database)
+		if err != nil {
+			return err
+		}
+		defer os.Remove(tmpdb)
+		store, storeErr = s.loadDBStore(ctx, tmpdb)
 	default:
 		return fmt.Errorf("unexpected registry source mode %q", dbMode)
 	}
@@ -134,17 +140,17 @@ func (s *serve) run(ctx context.Context) error {
 	})
 }
 
-func (s serve) loadDeclarativeConfigStore() (registry.GRPCQuery, error) {
+func (s serve) loadDeclarativeConfigStore(source string) (registry.GRPCQuery, error) {
 	var (
 		cfg *declcfg.DeclarativeConfig
 		err error
 	)
-	if stat, sErr := os.Stat(s.database); sErr != nil {
+	if stat, sErr := os.Stat(source); sErr != nil {
 		return nil, sErr
 	} else if stat.IsDir() {
-		cfg, err = declcfg.LoadDir(s.database)
+		cfg, err = declcfg.LoadDir(source)
 	} else {
-		cfg, err = declcfg.LoadFile(s.database)
+		cfg, err = declcfg.LoadFile(source)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("could not load declarative configs: %v", err)
@@ -156,15 +162,8 @@ func (s serve) loadDeclarativeConfigStore() (registry.GRPCQuery, error) {
 	return registry.NewQuerier(m), nil
 }
 
-func (s *serve) loadDBStore(ctx context.Context) (registry.GRPCQuery, error) {
-	// make a writable copy of the db for migrations
-	tmpdb, err := tmp.CopyTmpDB(s.database)
-	if err != nil {
-		return nil, err
-	}
-	defer os.Remove(tmpdb)
-
-	db, err := sqlite.Open(tmpdb)
+func (s *serve) loadDBStore(ctx context.Context, source string) (registry.GRPCQuery, error) {
+	db, err := sqlite.Open(source)
 	if err != nil {
 		return nil, err
 	}
