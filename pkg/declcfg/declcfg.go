@@ -11,6 +11,7 @@ import (
 type DeclarativeConfig struct {
 	Packages []pkg
 	Bundles  []bundle
+	Others   []json.RawMessage
 }
 
 func LoadDir(configDir string) (*DeclarativeConfig, error) {
@@ -27,6 +28,7 @@ func LoadDir(configDir string) (*DeclarativeConfig, error) {
 		}
 		cfg.Packages = append(cfg.Packages, fileCfg.Packages...)
 		cfg.Bundles = append(cfg.Bundles, fileCfg.Bundles...)
+		cfg.Others = append(cfg.Others, fileCfg.Others...)
 	}
 	return cfg, nil
 }
@@ -70,8 +72,7 @@ func LoadFile(configFile string) (*DeclarativeConfig, error) {
 			}
 			cfg.Bundles = append(cfg.Bundles, b)
 		default:
-			// Ignore unrecognized schemas
-			continue
+			cfg.Others = append(cfg.Others, *doc)
 		}
 	}
 	return cfg, nil
@@ -108,6 +109,10 @@ func WriteDir(cfg DeclarativeConfig, configDir string) error {
 			return err
 		}
 	}
+	ocfg := DeclarativeConfig{Others: cfg.Others}
+	if err := WriteFile(ocfg, filepath.Join(configDir, "__unrecognized-schema.json")); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -139,6 +144,11 @@ func WriteFile(cfg DeclarativeConfig, configFile string) error {
 			if err := enc.Encode(b); err != nil {
 				return err
 			}
+		}
+	}
+	for _, o := range cfg.Others {
+		if err := enc.Encode(o); err != nil {
+			return err
 		}
 	}
 	return nil

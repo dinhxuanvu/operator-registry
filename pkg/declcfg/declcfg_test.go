@@ -19,6 +19,7 @@ func TestLoadFile(t *testing.T) {
 		assertion         require.ErrorAssertionFunc
 		expectNumPackages int
 		expectNumBundles  int
+		expectNumOthers   int
 	}
 	specs := []spec{
 		{
@@ -52,6 +53,7 @@ func TestLoadFile(t *testing.T) {
 			assertion:         require.NoError,
 			expectNumPackages: 1,
 			expectNumBundles:  1,
+			expectNumOthers:   1,
 		},
 		{
 			name:              "Success/ValidFile",
@@ -59,6 +61,7 @@ func TestLoadFile(t *testing.T) {
 			assertion:         require.NoError,
 			expectNumPackages: 1,
 			expectNumBundles:  6,
+			expectNumOthers:   0,
 		},
 	}
 
@@ -70,6 +73,7 @@ func TestLoadFile(t *testing.T) {
 				require.NotNil(t, cfg)
 				assert.Equal(t, len(cfg.Packages), s.expectNumPackages, "unexpected package count")
 				assert.Equal(t, len(cfg.Bundles), s.expectNumBundles, "unexpected bundle count")
+				assert.Equal(t, len(cfg.Others), s.expectNumOthers, "unexpected others count")
 			}
 		})
 	}
@@ -82,6 +86,7 @@ func TestLoadDir(t *testing.T) {
 		assertion         require.ErrorAssertionFunc
 		expectNumPackages int
 		expectNumBundles  int
+		expectNumOthers   int
 	}
 	specs := []spec{
 		{
@@ -100,6 +105,7 @@ func TestLoadDir(t *testing.T) {
 			assertion:         require.NoError,
 			expectNumPackages: 3,
 			expectNumBundles:  12,
+			expectNumOthers:   1,
 		},
 	}
 
@@ -111,6 +117,7 @@ func TestLoadDir(t *testing.T) {
 				require.NotNil(t, cfg)
 				assert.Equal(t, len(cfg.Packages), s.expectNumPackages, "unexpected package count")
 				assert.Equal(t, len(cfg.Bundles), s.expectNumBundles, "unexpected bundle count")
+				assert.Equal(t, len(cfg.Others), s.expectNumOthers, "unexpected others count")
 			}
 		})
 	}
@@ -264,8 +271,8 @@ func TestWriteLoadRoundtrip(t *testing.T) {
 		fromFile, err := LoadFile(filename)
 		require.NoError(t, err)
 
-		removeWhitespaceFromProperties(toFile.Bundles)
-		removeWhitespaceFromProperties(fromFile.Bundles)
+		removeJSONWhitespace(&toFile)
+		removeJSONWhitespace(fromFile)
 
 		assert.Equal(t, toFile, *fromFile)
 	})
@@ -281,18 +288,21 @@ func TestWriteLoadRoundtrip(t *testing.T) {
 		fromDir, err := LoadDir(dirname)
 		require.NoError(t, err)
 
-		removeWhitespaceFromProperties(toDir.Bundles)
-		removeWhitespaceFromProperties(fromDir.Bundles)
+		removeJSONWhitespace(&toDir)
+		removeJSONWhitespace(fromDir)
 
 		assert.Equal(t, toDir, *fromDir)
 	})
 }
 
-func removeWhitespaceFromProperties(bundles []bundle) {
-	for ib := range bundles {
-		for ip := range bundles[ib].Properties {
-			replacer := strings.NewReplacer(" ", "", "\n", "")
-			bundles[ib].Properties[ip].Value = []byte(replacer.Replace(string(bundles[ib].Properties[ip].Value)))
+func removeJSONWhitespace(cfg *DeclarativeConfig) {
+	replacer := strings.NewReplacer(" ", "", "\n", "")
+	for ib := range cfg.Bundles {
+		for ip := range cfg.Bundles[ib].Properties {
+			cfg.Bundles[ib].Properties[ip].Value = []byte(replacer.Replace(string(cfg.Bundles[ib].Properties[ip].Value)))
 		}
+	}
+	for io := range cfg.Others {
+		cfg.Others[io] = []byte(replacer.Replace(string(cfg.Others[io])))
 	}
 }

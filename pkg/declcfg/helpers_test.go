@@ -36,6 +36,10 @@ func buildValidDeclarativeConfig() DeclarativeConfig {
 			a001, a010, a011,
 			b1, b2,
 		},
+		Others: []json.RawMessage{
+			json.RawMessage(`{ "schema": "custom.1" }`),
+			json.RawMessage(`{ "schema": "custom.2" }`),
+		},
 	}
 }
 
