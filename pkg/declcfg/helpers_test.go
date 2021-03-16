@@ -7,7 +7,7 @@ import (
 	"github.com/operator-framework/operator-registry/pkg/model"
 )
 
-func buildValidDeclarativeConfig() DeclarativeConfig {
+func buildValidDeclarativeConfig(includeUnrecognized bool) DeclarativeConfig {
 	a001 := newTestBundle("anakin", "0.0.1",
 		withChannel("light", ""),
 		withChannel("dark", ""),
@@ -27,6 +27,14 @@ func buildValidDeclarativeConfig() DeclarativeConfig {
 		withChannel("mando", testBundleName("boba-fett", "1.0.0")),
 	)
 
+	var others []json.RawMessage
+	if includeUnrecognized {
+		others = []json.RawMessage{
+			json.RawMessage(`{ "schema": "custom.1" }`),
+			json.RawMessage(`{ "schema": "custom.2" }`),
+		}
+	}
+
 	return DeclarativeConfig{
 		Packages: []pkg{
 			newTestPackage("anakin", "dark", svgSmallCircle),
@@ -36,10 +44,7 @@ func buildValidDeclarativeConfig() DeclarativeConfig {
 			a001, a010, a011,
 			b1, b2,
 		},
-		Others: []json.RawMessage{
-			json.RawMessage(`{ "schema": "custom.1" }`),
-			json.RawMessage(`{ "schema": "custom.2" }`),
-		},
+		Others: others,
 	}
 }
 

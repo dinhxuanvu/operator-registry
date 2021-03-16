@@ -153,13 +153,13 @@ func TestWriteDir(t *testing.T) {
 	specs := []spec{
 		{
 			name:      "Success/NonExistentDir",
-			cfg:       buildValidDeclarativeConfig(),
+			cfg:       buildValidDeclarativeConfig(true),
 			setupDir:  setupNonExistentDir,
 			assertion: require.NoError,
 		},
 		{
 			name:      "Success/EmptyDir",
-			cfg:       buildValidDeclarativeConfig(),
+			cfg:       buildValidDeclarativeConfig(true),
 			setupDir:  setupEmptyDir,
 			assertion: require.NoError,
 		},
@@ -171,13 +171,13 @@ func TestWriteDir(t *testing.T) {
 		},
 		{
 			name:      "Error/NotADir",
-			cfg:       buildValidDeclarativeConfig(),
+			cfg:       buildValidDeclarativeConfig(true),
 			setupDir:  setupFile,
 			assertion: require.Error,
 		},
 		{
 			name:      "Error/NonEmptyDir",
-			cfg:       buildValidDeclarativeConfig(),
+			cfg:       buildValidDeclarativeConfig(true),
 			setupDir:  setupNonEmptyDir,
 			assertion: require.Error,
 		},
@@ -196,9 +196,10 @@ func TestWriteDir(t *testing.T) {
 			if err == nil {
 				files, err := ioutil.ReadDir(testDir)
 				require.NoError(t, err)
-				require.Equal(t, len(files), 2, "expect two package files")
-				assert.Equal(t, files[0].Name(), "anakin.json")
-				assert.Equal(t, files[1].Name(), "boba-fett.json")
+				require.Equal(t, len(files), 3, "expect two package files")
+				assert.Equal(t, files[0].Name(), "__unrecognized-schema.json")
+				assert.Equal(t, files[1].Name(), "anakin.json")
+				assert.Equal(t, files[2].Name(), "boba-fett.json")
 				_, err = LoadDir(testDir)
 				assert.NoError(t, err)
 			}
@@ -224,13 +225,13 @@ func TestWriteFile(t *testing.T) {
 	specs := []spec{
 		{
 			name:      "Success/NonExistentFile",
-			cfg:       buildValidDeclarativeConfig(),
+			cfg:       buildValidDeclarativeConfig(true),
 			setupFile: getFilename,
 			assertion: require.NoError,
 		},
 		{
 			name:      "Error/NotAFile",
-			cfg:       buildValidDeclarativeConfig(),
+			cfg:       buildValidDeclarativeConfig(true),
 			setupFile: getDirectory,
 			assertion: require.Error,
 		},
@@ -260,7 +261,7 @@ func TestWriteFile(t *testing.T) {
 
 func TestWriteLoadRoundtrip(t *testing.T) {
 	t.Run("File", func(t *testing.T) {
-		toFile := buildValidDeclarativeConfig()
+		toFile := buildValidDeclarativeConfig(true)
 
 		filename := filepath.Join(os.TempDir(), "decl-write-file-"+rand.String(5)+".json")
 		defer func() {
@@ -278,7 +279,7 @@ func TestWriteLoadRoundtrip(t *testing.T) {
 	})
 
 	t.Run("Dir", func(t *testing.T) {
-		toDir := buildValidDeclarativeConfig()
+		toDir := buildValidDeclarativeConfig(true)
 		dirname := filepath.Join(os.TempDir(), "decl-write-dir-"+rand.String(5))
 		defer func() {
 			require.NoError(t, os.RemoveAll(dirname))

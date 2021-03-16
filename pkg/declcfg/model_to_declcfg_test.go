@@ -19,13 +19,18 @@ func TestConvertFromModel(t *testing.T) {
 		{
 			name:      "Success",
 			m:         buildTestModel(),
-			expectCfg: buildValidDeclarativeConfig(),
+			expectCfg: buildValidDeclarativeConfig(false),
 		},
 	}
 
 	for _, s := range specs {
 		t.Run(s.name, func(t *testing.T) {
+			s.m.Normalize()
 			actual := ConvertFromModel(s.m)
+
+			removeJSONWhitespace(&s.expectCfg)
+			removeJSONWhitespace(&actual)
+
 			assert.Equal(t, s.expectCfg, actual)
 		})
 	}

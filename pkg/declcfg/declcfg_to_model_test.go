@@ -58,11 +58,16 @@ func TestConvertToModel(t *testing.T) {
 }
 
 func TestConvertToModelRoundtrip(t *testing.T) {
-	expected := buildValidDeclarativeConfig()
+	expected := buildValidDeclarativeConfig(true)
 
 	m, err := ConvertToModel(expected)
 	require.NoError(t, err)
 	actual := ConvertFromModel(m)
 
-	assert.Equal(t, expected, actual)
+	removeJSONWhitespace(&expected)
+	removeJSONWhitespace(&actual)
+
+	assert.Equal(t, expected.Packages, actual.Packages)
+	assert.Equal(t, expected.Bundles, actual.Bundles)
+	assert.Len(t, actual.Others, 0, "expected unrecognized schemas not to make the roundtrip")
 }
