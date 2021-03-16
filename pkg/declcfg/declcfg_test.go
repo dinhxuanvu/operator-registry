@@ -37,11 +37,6 @@ func TestLoadFile(t *testing.T) {
 			assertion: require.Error,
 		},
 		{
-			name:      "Error/UnrecognizedSchema",
-			file:      "testdata/invalid/unrecognized-schema.json",
-			assertion: require.Error,
-		},
-		{
 			name:      "Error/InvalidPackageJSON",
 			file:      "testdata/invalid/invalid-package-json.json",
 			assertion: require.Error,
@@ -50,6 +45,13 @@ func TestLoadFile(t *testing.T) {
 			name:      "Error/InvalidPackageJSON",
 			file:      "testdata/invalid/invalid-bundle-json.json",
 			assertion: require.Error,
+		},
+		{
+			name:              "Success/UnrecognizedSchema",
+			file:              "testdata/valid/unrecognized-schema.json",
+			assertion:         require.NoError,
+			expectNumPackages: 1,
+			expectNumBundles:  1,
 		},
 		{
 			name:              "Success/ValidFile",
@@ -96,8 +98,8 @@ func TestLoadDir(t *testing.T) {
 			name:              "Success/ValidDir",
 			dir:               "testdata/valid",
 			assertion:         require.NoError,
-			expectNumPackages: 2,
-			expectNumBundles:  11,
+			expectNumPackages: 3,
+			expectNumBundles:  12,
 		},
 	}
 
