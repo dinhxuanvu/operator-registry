@@ -3,21 +3,18 @@ package registry
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"net"
 	"os"
-	"path/filepath"
 	"strconv"
 	"time"
 
-	"github.com/h2non/filetype"
-	"github.com/h2non/filetype/matchers"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
+	mode "github.com/operator-framework/operator-registry/cmd/opm/registry/internal/mode"
 	"github.com/operator-framework/operator-registry/pkg/api"
 	health "github.com/operator-framework/operator-registry/pkg/api/grpc_health_v1"
 	"github.com/operator-framework/operator-registry/pkg/declcfg"
@@ -30,44 +27,49 @@ import (
 	"github.com/operator-framework/operator-registry/pkg/sqlite"
 )
 
-const (
-	modeSqlite  = "sqlite"
-	modeDeclCfg = "declcfg"
-)
+type serve struct {
+	debug          bool
+	database       string
+	port           string
+	terminationLog string
+	skipMigrate    bool
+	timeout        string
+
+	logger *logrus.Entry
+}
 
 func newRegistryServeCmd() *cobra.Command {
+	s := serve{
+		logger: logrus.NewEntry(logrus.StandardLogger()),
+	}
 	rootCmd := &cobra.Command{
 		Use:   "serve <source_path>",
 		Short: "serve an operator-registry source",
 		Long:  `serve an operator-registry source that is queryable using grpc`,
-		Args:  cobra.MaximumNArgs(1),
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			if debug, _ := cmd.Flags().GetBool("debug"); debug {
+		PreRunE: func(_ *cobra.Command, _ []string) error {
+			if s.debug {
 				logrus.SetLevel(logrus.DebugLevel)
 			}
 			return nil
 		},
-
-		RunE: serveFunc,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return s.run(cmd.Context())
+		},
 	}
 
-	rootCmd.Flags().Bool("debug", false, "enable debug logging")
-	rootCmd.Flags().StringP("database", "d", "bundles.db", "relative path to sqlite db")
-	rootCmd.Flags().StringP("port", "p", "50051", "port number to serve on")
-	rootCmd.Flags().StringP("termination-log", "t", "/dev/termination-log", "path to a container termination log file")
-	rootCmd.Flags().Bool("skip-migrate", false, "do  not attempt to migrate to the latest db revision when starting")
-	rootCmd.Flags().String("timeout-seconds", "infinite", "Timeout in seconds. This flag will be removed later.")
+	rootCmd.Flags().BoolVar(&s.debug, "debug", false, "enable debug logging")
+	rootCmd.Flags().StringVarP(&s.database, "database", "d", "bundles.db", "relative path to sqlite db")
+	rootCmd.Flags().StringVarP(&s.port, "port", "p", "50051", "port number to serve on")
+	rootCmd.Flags().StringVarP(&s.terminationLog, "termination-log", "t", "/dev/termination-log", "path to a container termination log file")
+	rootCmd.Flags().BoolVar(&s.skipMigrate, "skip-migrate", false, "do  not attempt to migrate to the latest db revision when starting")
+	rootCmd.Flags().StringVar(&s.timeout, "timeout-seconds", "infinite", "Timeout in seconds. This flag will be removed later.")
 
 	return rootCmd
 }
 
-func serveFunc(cmd *cobra.Command, args []string) error {
+func (s *serve) run(ctx context.Context) error {
 	// Immediately set up termination log
-	terminationLogPath, err := cmd.Flags().GetString("termination-log")
-	if err != nil {
-		return err
-	}
-	err = log.AddDefaultWriterHooks(terminationLogPath)
+	err := log.AddDefaultWriterHooks(s.terminationLog)
 	if err != nil {
 		logrus.WithError(err).Warn("unable to set termination log path")
 	}
@@ -77,158 +79,117 @@ func serveFunc(cmd *cobra.Command, args []string) error {
 		logrus.WithError(err).Warn("unable to write default nsswitch config")
 	}
 
-	port, err := cmd.Flags().GetString("port")
+	s.logger = s.logger.WithFields(logrus.Fields{"database": s.database, "port": s.port})
+
+	dbMode, err := mode.DetectSourceMode(s.database)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not detect source mode for file %q: %v", s.database, err)
 	}
 
-	logger := logrus.WithField("port", port)
-
-	source, mode, err := detectRegistrySource(cmd, args)
-	if err != nil {
-		return err
-	}
-
-	var store registry.GRPCQuery
-
-	switch mode {
-	case modeDeclCfg:
-		logger = logger.WithField("configs", source)
-
-		var (
-			cfg *declcfg.DeclarativeConfig
-			err error
-		)
-		if s, sErr := os.Stat(source); sErr != nil {
-			return sErr
-		} else if s.IsDir() {
-			cfg, err = declcfg.LoadDir(source)
-		} else {
-			cfg, err = declcfg.LoadFile(source)
-		}
-		if err != nil {
-			return fmt.Errorf("could not load declarative configs: %v", err)
-		}
-		m, err := declcfg.ConvertToModel(*cfg)
-		if err != nil {
-			return fmt.Errorf("could not build index model from declarative config: %v", err)
-		}
-		store = registry.NewQuerier(m)
-	case modeSqlite:
-		logger = logger.WithField("database", source)
-
-		// make a writable copy of the db for migrations
-		tmpdb, err := tmp.CopyTmpDB(source)
-		if err != nil {
-			return err
-		}
-		defer os.Remove(tmpdb)
-
-		db, err := sqlite.Open(tmpdb)
-		if err != nil {
-			return err
-		}
-
-		// migrate to the latest version
-		if err := migrate(cmd, db); err != nil {
-			logger.WithError(err).Warnf("couldn't migrate db")
-		}
-
-		dbStore := sqlite.NewSQLLiteQuerierFromDb(db)
-
-		// sanity check that the db is available
-		tables, err := dbStore.ListTables(context.TODO())
-		if err != nil {
-			logger.WithError(err).Warnf("couldn't list tables in db")
-		}
-		if len(tables) == 0 {
-			logger.Warn("no tables found in db")
-		}
-		store = dbStore
+	var (
+		store    registry.GRPCQuery
+		storeErr error
+	)
+	switch dbMode {
+	case mode.ModeDeclarativeConfig:
+		store, storeErr = s.loadDeclarativeConfigStore()
+	case mode.ModeSqlite:
+		store, storeErr = s.loadDBStore(ctx)
 	default:
-		return errors.New("failed to detect registry mode, expected sqlite datafile path or declarative config path")
+		return fmt.Errorf("unexpected registry source mode %q", dbMode)
+	}
+	if storeErr != nil {
+		return fmt.Errorf("failed to load grpc store: %v", storeErr)
 	}
 
-	lis, err := net.Listen("tcp", ":"+port)
+	lis, err := net.Listen("tcp", ":"+s.port)
 	if err != nil {
-		logger.Fatalf("failed to listen: %s", err)
+		s.logger.Fatalf("failed to listen: %s", err)
 	}
 
-	timeout, err := cmd.Flags().GetString("timeout-seconds")
-	if err != nil {
-		return err
-	}
-
-	s := grpc.NewServer()
-	logger.Printf("Keeping server open for %s seconds", timeout)
-	if timeout != "infinite" {
-		timeoutSeconds, err := strconv.ParseUint(timeout, 10, 16)
+	grpcServer := grpc.NewServer()
+	s.logger.Printf("Keeping server open for %s seconds", s.timeout)
+	if s.timeout != "infinite" {
+		timeoutSeconds, err := strconv.ParseUint(s.timeout, 10, 16)
 		if err != nil {
 			return err
 		}
 
 		timeoutDuration := time.Duration(timeoutSeconds) * time.Second
 		timer := time.AfterFunc(timeoutDuration, func() {
-			logger.Info("Timeout expired. Gracefully stopping.")
-			s.GracefulStop()
+			s.logger.Info("Timeout expired. Gracefully stopping.")
+			grpcServer.GracefulStop()
 		})
 		defer timer.Stop()
 	}
 
-	api.RegisterRegistryServer(s, server.NewRegistryServer(store))
-	health.RegisterHealthServer(s, server.NewHealthServer())
-	reflection.Register(s)
-	logger.Info("serving registry")
-	return graceful.Shutdown(logger, func() error {
-		return s.Serve(lis)
+	api.RegisterRegistryServer(grpcServer, server.NewRegistryServer(store))
+	health.RegisterHealthServer(grpcServer, server.NewHealthServer())
+	reflection.Register(grpcServer)
+	s.logger.Info("serving registry")
+	return graceful.Shutdown(s.logger, func() error {
+		return grpcServer.Serve(lis)
 	}, func() {
-		s.GracefulStop()
+		grpcServer.GracefulStop()
 	})
 }
 
-func detectRegistrySource(cmd *cobra.Command, args []string) (string, string, error) {
-	if len(args) > 0 && cmd.Flag("database").Changed {
-		return "", "", errors.New("ambiguous usage: positional argument and --database flag are mutually exclusive")
+func (s serve) loadDeclarativeConfigStore() (registry.GRPCQuery, error) {
+	var (
+		cfg *declcfg.DeclarativeConfig
+		err error
+	)
+	if stat, sErr := os.Stat(s.database); sErr != nil {
+		return nil, sErr
+	} else if stat.IsDir() {
+		cfg, err = declcfg.LoadDir(s.database)
+	} else {
+		cfg, err = declcfg.LoadFile(s.database)
 	}
-	if len(args) == 0 {
-		logrus.Warnf("flag --database is deprecated, use a positional argument to define the registry source path")
-		dbPath, err := cmd.Flags().GetString("database")
-		if err != nil {
-			return "", "", err
-		}
-		return dbPath, modeSqlite, nil
-	}
-
-	source := args[0]
-	sourceInfo, err := os.Stat(source)
 	if err != nil {
-		return "", "", err
+		return nil, fmt.Errorf("could not load declarative configs: %v", err)
 	}
-	if sourceInfo.IsDir() || filepath.Ext(source) == ".json" {
-		return source, modeDeclCfg, nil
-	}
-
-	t, err := filetype.MatchFile(source)
+	m, err := declcfg.ConvertToModel(*cfg)
 	if err != nil {
-		return "", "", err
+		return nil, fmt.Errorf("could not build index model from declarative config: %v", err)
 	}
-	switch t {
-	case matchers.TypeSqlite:
-		return source, modeSqlite, nil
-	}
-
-	return "", "", fmt.Errorf("could not detect registry source mode from file %q", source)
+	return registry.NewQuerier(m), nil
 }
 
-func migrate(cmd *cobra.Command, db *sql.DB) error {
-	shouldSkipMigrate, err := cmd.Flags().GetBool("skip-migrate")
+func (s *serve) loadDBStore(ctx context.Context) (registry.GRPCQuery, error) {
+	// make a writable copy of the db for migrations
+	tmpdb, err := tmp.CopyTmpDB(s.database)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if shouldSkipMigrate {
-		return nil
+	defer os.Remove(tmpdb)
+
+	db, err := sqlite.Open(tmpdb)
+	if err != nil {
+		return nil, err
 	}
 
+	if !s.skipMigrate {
+		// migrate to the latest version
+		if err := s.migrate(ctx, db); err != nil {
+			s.logger.WithError(err).Warnf("couldn't migrate db")
+		}
+	}
+
+	dbStore := sqlite.NewSQLLiteQuerierFromDb(db)
+
+	// sanity check that the db is available
+	tables, err := dbStore.ListTables(ctx)
+	if err != nil {
+		s.logger.WithError(err).Warnf("couldn't list tables in db")
+	}
+	if len(tables) == 0 {
+		s.logger.Warn("no tables found in db")
+	}
+	return dbStore, nil
+}
+
+func (s serve) migrate(ctx context.Context, db *sql.DB) error {
 	migrator, err := sqlite.NewSQLLiteMigrator(db)
 	if err != nil {
 		return err
@@ -237,5 +198,5 @@ func migrate(cmd *cobra.Command, db *sql.DB) error {
 		return fmt.Errorf("failed to load migrator")
 	}
 
-	return migrator.Migrate(context.TODO())
+	return migrator.Migrate(ctx)
 }
