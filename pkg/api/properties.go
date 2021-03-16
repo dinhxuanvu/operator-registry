@@ -70,7 +70,7 @@ func parseProperties(props []model.Property) (*properties, error) {
 			if err := json.Unmarshal(prop.Value, &p); err != nil {
 				return nil, propertyParseError{i: i, t: prop.Type, err: err}
 			}
-			if pp != nil {
+			if len(ps.skipRange) != 0 {
 				return nil, propertyMultipleNotAllowedError{i: i, t: prop.Type}
 			}
 			ps.skipRange = p
