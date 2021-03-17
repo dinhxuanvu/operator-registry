@@ -116,14 +116,7 @@ func (q Querier) GetChannelEntriesThatReplace(_ context.Context, name string) ([
 	for _, pkg := range q.pkgs {
 		for _, ch := range pkg.Channels {
 			for _, b := range ch.Bundles {
-				if b.Replaces == name {
-					entries = append(entries, &ChannelEntry{
-						PackageName: b.Package.Name,
-						ChannelName: b.Channel.Name,
-						BundleName:  b.Name,
-						Replaces:    b.Replaces,
-					})
-				}
+				entries = append(entries, channelEntriesThatReplace(*b, name)...)
 			}
 		}
 	}
@@ -166,12 +159,7 @@ func (q Querier) GetChannelEntriesThatProvide(_ context.Context, group, version,
 					return nil, err
 				}
 				if provides {
-					entries = append(entries, &ChannelEntry{
-						PackageName: b.Package.Name,
-						ChannelName: b.Channel.Name,
-						BundleName:  b.Name,
-						Replaces:    b.Replaces,
-					})
+					entries = append(entries, channelEntriesForBundle(*b)...)
 				}
 			}
 		}
@@ -204,12 +192,7 @@ func (q Querier) GetLatestChannelEntriesThatProvide(_ context.Context, group, ve
 				return nil, err
 			}
 			if provides {
-				entries = append(entries, &ChannelEntry{
-					PackageName: b.Package.Name,
-					ChannelName: b.Channel.Name,
-					BundleName:  b.Name,
-					Replaces:    b.Replaces,
-				})
+				entries = append(entries, channelEntriesForBundle(*b)...)
 			}
 		}
 	}
@@ -257,4 +240,59 @@ func doesModelBundleProvide(b model.Bundle, group, version, kind string) (bool, 
 		}
 	}
 	return false, nil
+}
+
+func channelEntriesThatReplace(b model.Bundle, name string) []*ChannelEntry {
+	var entries []*ChannelEntry
+	if b.Replaces == name {
+		entries = append(entries, &ChannelEntry{
+			PackageName: b.Package.Name,
+			ChannelName: b.Channel.Name,
+			BundleName:  b.Name,
+			Replaces:    b.Replaces,
+		})
+	}
+	for _, s := range b.Skips {
+		// If the skipped bundle is in this channel, is the one
+		// where looking for AND it isn't what this bundle replaces,
+		// add a channel entry for it.
+		//
+		// TODO(joelanford): This needs to be tested in comparison with
+		//   the sqlite querier to see if this mimics its behavior.
+		if _, ok := b.Channel.Bundles[s]; ok && s == name && s != b.Replaces {
+			entries = append(entries, &ChannelEntry{
+				PackageName: b.Package.Name,
+				ChannelName: b.Channel.Name,
+				BundleName:  b.Name,
+				Replaces:    b.Replaces,
+			})
+		}
+	}
+	return entries
+}
+
+func channelEntriesForBundle(b model.Bundle) []*ChannelEntry {
+	entries := []*ChannelEntry{{
+		PackageName: b.Package.Name,
+		ChannelName: b.Channel.Name,
+		BundleName:  b.Name,
+		Replaces:    b.Replaces,
+	}}
+	for _, s := range b.Skips {
+		// If the skipped bundle is in this channel AND it isn't what
+		// this bundle replaces add a channel entry for it.
+		//
+		// TODO(joelanford): It seems like the SQLite query returns
+		//   invalid entries (i.e. where bundle `Replaces` isn't actually
+		//   in channel `ChannelName`). Is that a bug?
+		if _, ok := b.Channel.Bundles[s]; ok && s != b.Replaces {
+			entries = append(entries, &ChannelEntry{
+				PackageName: b.Package.Name,
+				ChannelName: b.Channel.Name,
+				BundleName:  b.Name,
+				Replaces:    s,
+			})
+		}
+	}
+	return entries
 }
