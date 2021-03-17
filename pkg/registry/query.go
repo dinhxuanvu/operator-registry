@@ -87,6 +87,11 @@ func (q Querier) GetBundle(_ context.Context, pkgName, channelName, csvName stri
 	if err != nil {
 		return nil, fmt.Errorf("convert bundle %q: %v", b.Name, err)
 	}
+
+	// unset Replaces and Skips (sqlite query does not populate these fields)
+	// TODO(joelanford): should these fields be populated?
+	apiBundle.Replaces = ""
+	apiBundle.Skips = nil
 	return apiBundle, nil
 }
 
@@ -107,6 +112,11 @@ func (q Querier) GetBundleForChannel(_ context.Context, pkgName string, channelN
 	if err != nil {
 		return nil, fmt.Errorf("convert bundle %q: %v", head.Name, err)
 	}
+
+	// unset Replaces and Skips (sqlite query does not populate these fields)
+	// TODO(joelanford): should these fields be populated?
+	apiBundle.Replaces = ""
+	apiBundle.Skips = nil
 	return apiBundle, nil
 }
 
@@ -137,11 +147,16 @@ func (q Querier) GetBundleThatReplaces(_ context.Context, name, pkgName, channel
 		return nil, fmt.Errorf("package %q, channel %q not found", pkgName, channelName)
 	}
 	for _, b := range ch.Bundles {
-		if b.Replaces == name {
+		if bundleReplaces(*b, name) {
 			apiBundle, err := api.ConvertModelBundleToAPIBundle(*b)
 			if err != nil {
 				return nil, fmt.Errorf("convert bundle %q: %v", b.Name, err)
 			}
+
+			// unset Replaces and Skips (sqlite query does not populate these fields)
+			// TODO(joelanford): should these fields be populated?
+			apiBundle.Replaces = ""
+			apiBundle.Skips = nil
 			return apiBundle, nil
 		}
 	}
@@ -192,7 +207,7 @@ func (q Querier) GetLatestChannelEntriesThatProvide(_ context.Context, group, ve
 				return nil, err
 			}
 			if provides {
-				entries = append(entries, channelEntriesForBundle(*b)...)
+				entries = append(entries, latestChannelEntriesForBundle(*b)...)
 			}
 		}
 	}
@@ -242,6 +257,18 @@ func doesModelBundleProvide(b model.Bundle, group, version, kind string) (bool, 
 	return false, nil
 }
 
+func bundleReplaces(b model.Bundle, name string) bool {
+	if b.Replaces == name {
+		return true
+	}
+	for _, s := range b.Skips {
+		if s == name {
+			return true
+		}
+	}
+	return false
+}
+
 func channelEntriesThatReplace(b model.Bundle, name string) []*ChannelEntry {
 	var entries []*ChannelEntry
 	if b.Replaces == name {
@@ -253,18 +280,34 @@ func channelEntriesThatReplace(b model.Bundle, name string) []*ChannelEntry {
 		})
 	}
 	for _, s := range b.Skips {
-		// If the skipped bundle is in this channel, is the one
-		// where looking for AND it isn't what this bundle replaces,
-		// add a channel entry for it.
-		//
-		// TODO(joelanford): This needs to be tested in comparison with
-		//   the sqlite querier to see if this mimics its behavior.
-		if _, ok := b.Channel.Bundles[s]; ok && s == name && s != b.Replaces {
+		if s == name && s != b.Replaces {
 			entries = append(entries, &ChannelEntry{
 				PackageName: b.Package.Name,
 				ChannelName: b.Channel.Name,
 				BundleName:  b.Name,
 				Replaces:    b.Replaces,
+			})
+		}
+	}
+	return entries
+}
+
+func latestChannelEntriesForBundle(b model.Bundle) []*ChannelEntry {
+	entries := []*ChannelEntry{{
+		PackageName: b.Package.Name,
+		ChannelName: b.Channel.Name,
+		BundleName:  b.Name,
+		Replaces:    b.Replaces,
+	}}
+	for _, s := range b.Skips {
+		// If the skipped bundle is in this channel AND it isn't what
+		// this bundle replaces add a channel entry for it.
+		if _, ok := b.Channel.Bundles[s]; ok && s != b.Replaces {
+			entries = append(entries, &ChannelEntry{
+				PackageName: b.Package.Name,
+				ChannelName: b.Channel.Name,
+				BundleName:  b.Name,
+				Replaces:    s,
 			})
 		}
 	}
@@ -279,13 +322,14 @@ func channelEntriesForBundle(b model.Bundle) []*ChannelEntry {
 		Replaces:    b.Replaces,
 	}}
 	for _, s := range b.Skips {
-		// If the skipped bundle is in this channel AND it isn't what
-		// this bundle replaces add a channel entry for it.
+		// If the skipped bundle isn't what this bundle replaces add a
+		// channel entry for it.
 		//
 		// TODO(joelanford): It seems like the SQLite query returns
 		//   invalid entries (i.e. where bundle `Replaces` isn't actually
-		//   in channel `ChannelName`). Is that a bug?
-		if _, ok := b.Channel.Bundles[s]; ok && s != b.Replaces {
+		//   in channel `ChannelName`). Is that a bug? For now, this mimics
+		//   the sqlite server and returns seemingly invalid channel entries.
+		if s != b.Replaces {
 			entries = append(entries, &ChannelEntry{
 				PackageName: b.Package.Name,
 				ChannelName: b.Channel.Name,

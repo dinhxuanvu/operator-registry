@@ -324,7 +324,7 @@ func TestValidators(t *testing.T) {
 				Package:  pkg,
 				Channel:  ch,
 				Name:     "anakin.v0.1.0",
-				Image:    "anakin-operator:v0.1.0",
+				Image:    "",
 				Replaces: "anakin.v0.0.1",
 				Skips:    []string{"anakin.v0.0.2"},
 				Properties: []Property{
@@ -395,18 +395,6 @@ func TestValidators(t *testing.T) {
 				Replaces:   "anakin.v0.0.1",
 				Properties: []Property{{Type: "custom", Value: json.RawMessage("{}")}},
 				Skips:      []string{""},
-			},
-			assertion: require.Error,
-		},
-		{
-			name: "Bundle/Error/NoImage",
-			v: &Bundle{
-				Package:    pkg,
-				Channel:    ch,
-				Name:       "anakin.v0.1.0",
-				Replaces:   "anakin.v0.0.1",
-				Properties: []Property{{Type: "custom", Value: json.RawMessage("{}")}},
-				Skips:      []string{"anakin.v0.0.2"},
 			},
 			assertion: require.Error,
 		},

@@ -37,7 +37,7 @@ func convertModelPropertiesToAPIProperties(props []model.Property) []*Property {
 		// Remove the "plural" field from GVK properties.
 		value := prop.Value
 		if prop.Type == propertyTypeProvidedGVK || prop.Type == propertyTypeRequiredGVK {
-			value = removePluralFromGVKProperty(value)
+			value = marshalAsGVKProperty(value)
 		}
 
 		// Copy property to API Properties list
@@ -56,7 +56,7 @@ func convertModelPropertiesToAPIDependencies(props []model.Property) []*Dependen
 		case propertyTypeRequiredGVK:
 			out = append(out, &Dependency{
 				Type:  apiTypeGVK,
-				Value: string(removePluralFromGVKProperty(prop.Value)),
+				Value: string(marshalAsGVKProperty(prop.Value)),
 			})
 		case propertyTypeRequiredPackage:
 			out = append(out, &Dependency{
@@ -68,13 +68,13 @@ func convertModelPropertiesToAPIDependencies(props []model.Property) []*Dependen
 	return out
 }
 
-func removePluralFromGVKProperty(in json.RawMessage) json.RawMessage {
-	var gvk GroupVersionKind
-	if err := json.Unmarshal(in, &gvk); err != nil {
+func marshalAsGVKProperty(in json.RawMessage) json.RawMessage {
+	var v GroupVersionKind
+	if err := json.Unmarshal(in, &v); err != nil {
 		return in
 	}
-	gvk.Plural = ""
-	out, err := json.Marshal(gvk)
+	dep := gvk{v.Group, v.Kind, v.Version}
+	out, err := json.Marshal(dep)
 	if err != nil {
 		return in
 	}

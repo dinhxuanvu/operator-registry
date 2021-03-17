@@ -222,10 +222,8 @@ func (b *Bundle) Validate() error {
 			return fmt.Errorf("skip[%d] is empty", i)
 		}
 	}
-	// TODO(joelanford): Validate image string as container reference?
-	if b.Image == "" {
-		return fmt.Errorf("image is unset")
-	}
+
+	// TODO(joelanford): Validate image string?
 
 	return nil
 }

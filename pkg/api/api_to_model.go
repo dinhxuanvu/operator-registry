@@ -61,19 +61,26 @@ func convertAPIBundleToModelProperties(b *Bundle) ([]model.Property, error) {
 		Value: channelJson,
 	})
 
-	foundGVKProperty, foundPackageProperty := false, false
-	for _, p := range b.Properties {
+	providedGVKs := map[gvk]*gvkp{}
+	requiredGVKs := map[gvk]*gvkp{}
+
+	foundPackageProperty := false
+	for i, p := range b.Properties {
 		switch p.Type {
 		case apiTypeGVK:
-			foundGVKProperty = true
-			out = append(out, model.Property{
-				Type:  propertyTypeProvidedGVK,
-				Value: json.RawMessage(p.Value),
-			})
+			var v gvkp
+			if err := json.Unmarshal(json.RawMessage(p.Value), &v); err != nil {
+				return nil, propertyParseError{i, p.Type, err}
+			}
+			providedGVKs[gvk{v.Group, v.Kind, v.Version}] = &v
 		case apiTypePackage:
 			foundPackageProperty = true
 			out = append(out, model.Property{
 				Type:  propertyTypeProvidedPackage,
+				Value: json.RawMessage(p.Value),
+			})
+			out = append(out, model.Property{
+				Type:  apiTypePackage,
 				Value: json.RawMessage(p.Value),
 			})
 		default:
@@ -84,15 +91,14 @@ func convertAPIBundleToModelProperties(b *Bundle) ([]model.Property, error) {
 		}
 	}
 
-	foundGVKDependency := false
-	for _, p := range b.Dependencies {
+	for i, p := range b.Dependencies {
 		switch p.Type {
 		case apiTypeGVK:
-			foundGVKDependency = true
-			out = append(out, model.Property{
-				Type:  propertyTypeRequiredGVK,
-				Value: json.RawMessage(p.Value),
-			})
+			var v gvkp
+			if err := json.Unmarshal(json.RawMessage(p.Value), &v); err != nil {
+				return nil, propertyParseError{i, p.Type, err}
+			}
+			requiredGVKs[gvk{v.Group, v.Kind, v.Version}] = &v
 		case apiTypePackage:
 			out = append(out, model.Property{
 				Type:  propertyTypeRequiredPackage,
@@ -101,22 +107,6 @@ func convertAPIBundleToModelProperties(b *Bundle) ([]model.Property, error) {
 		}
 	}
 
-	if !foundGVKProperty {
-		for _, p := range b.ProvidedApis {
-			// TODO(joelanford): It's a little hard to tell where the plural field is expected
-			//   and where it isn't. What clients expect the `plural` field in GVKs and in which
-			//   fields of the API?
-			p.Plural = ""
-			gvkJson, err := json.Marshal(p)
-			if err != nil {
-				return nil, fmt.Errorf("marshal %q property %+v: %v", propertyTypeProvidedGVK, p, err)
-			}
-			out = append(out, model.Property{
-				Type:  propertyTypeProvidedGVK,
-				Value: gvkJson,
-			})
-		}
-	}
 	if !foundPackageProperty {
 		provPkg := providedPackage{
 			PackageName: b.PackageName,
@@ -130,19 +120,53 @@ func convertAPIBundleToModelProperties(b *Bundle) ([]model.Property, error) {
 			Type:  propertyTypeProvidedPackage,
 			Value: provPkgJson,
 		})
+		out = append(out, model.Property{
+			Type:  apiTypePackage,
+			Value: provPkgJson,
+		})
 	}
-	if !foundGVKDependency {
-		for _, p := range b.RequiredApis {
-			p.Plural = ""
-			gvkJson, err := json.Marshal(p)
-			if err != nil {
-				return nil, fmt.Errorf("marshal %q property %+v: %v", propertyTypeRequiredGVK, p, err)
-			}
-			out = append(out, model.Property{
-				Type:  propertyTypeRequiredGVK,
-				Value: gvkJson,
-			})
+
+	for _, p := range b.ProvidedApis {
+		k := gvk{p.Group, p.Kind, p.Version}
+		if v, ok := providedGVKs[k]; !ok {
+			providedGVKs[k] = &gvkp{p.Group, p.Kind, p.Version, p.Plural}
+		} else {
+			v.Plural = p.Plural
 		}
+	}
+	for _, p := range b.RequiredApis {
+		k := gvk{p.Group, p.Kind, p.Version}
+		if v, ok := requiredGVKs[k]; !ok {
+			requiredGVKs[k] = &gvkp{p.Group, p.Kind, p.Version, p.Plural}
+		} else {
+			v.Plural = p.Plural
+		}
+	}
+
+	for _, p := range providedGVKs {
+		gvkJson, err := json.Marshal(p)
+		if err != nil {
+			return nil, fmt.Errorf("marshal %q property %+v: %v", propertyTypeProvidedGVK, p, err)
+		}
+		out = append(out, model.Property{
+			Type:  propertyTypeProvidedGVK,
+			Value: gvkJson,
+		})
+		out = append(out, model.Property{
+			Type:  apiTypeGVK,
+			Value: marshalAsGVKProperty(gvkJson),
+		})
+	}
+
+	for _, p := range requiredGVKs {
+		gvkJson, err := json.Marshal(p)
+		if err != nil {
+			return nil, fmt.Errorf("marshal %q property %+v: %v", propertyTypeProvidedGVK, p, err)
+		}
+		out = append(out, model.Property{
+			Type:  propertyTypeRequiredGVK,
+			Value: gvkJson,
+		})
 	}
 
 	return out, nil

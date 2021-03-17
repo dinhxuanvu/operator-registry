@@ -30,6 +30,18 @@ type providedPackage struct {
 	Version     string `json:"version"`
 }
 
+type gvk struct {
+	Group   string `json:"group"`
+	Kind    string `json:"kind"`
+	Version string `json:"version"`
+}
+type gvkp struct {
+	Group   string `json:"group"`
+	Kind    string `json:"kind"`
+	Version string `json:"version"`
+	Plural  string `json:"plural"`
+}
+
 type properties struct {
 	providedPackage providedPackage
 	providedGVKs    []*GroupVersionKind
