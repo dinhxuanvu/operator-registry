@@ -1,6 +1,7 @@
 package declcfg
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -43,7 +44,7 @@ func TestLoadFile(t *testing.T) {
 			assertion: require.Error,
 		},
 		{
-			name:      "Error/InvalidPackageJSON",
+			name:      "Error/InvalidBundleJSON",
 			file:      "testdata/invalid/invalid-bundle-json.json",
 			assertion: require.Error,
 		},
@@ -164,12 +165,6 @@ func TestWriteDir(t *testing.T) {
 			assertion: require.NoError,
 		},
 		{
-			name:      "Error/MissingProvidedPackage",
-			cfg:       buildInvalidDeclarativeConfig(),
-			setupDir:  setupEmptyDir,
-			assertion: require.Error,
-		},
-		{
 			name:      "Error/NotADir",
 			cfg:       buildValidDeclarativeConfig(true),
 			setupDir:  setupFile,
@@ -196,12 +191,38 @@ func TestWriteDir(t *testing.T) {
 			if err == nil {
 				files, err := ioutil.ReadDir(testDir)
 				require.NoError(t, err)
-				require.Equal(t, len(files), 3, "expect two package files")
-				assert.Equal(t, files[0].Name(), "__unrecognized-schema.json")
-				assert.Equal(t, files[1].Name(), "anakin.json")
-				assert.Equal(t, files[2].Name(), "boba-fett.json")
-				_, err = LoadDir(testDir)
-				assert.NoError(t, err)
+				filenames := []string{}
+				for _, f := range files {
+					filenames = append(filenames, f.Name())
+				}
+
+				expectedFiles := []string{fmt.Sprintf("%s.json", globalName), "anakin.json", "boba-fett.json"}
+				require.ElementsMatch(t, expectedFiles, filenames)
+
+				anakin, err := LoadFile(filepath.Join(testDir, "anakin.json"))
+				require.NoError(t, err)
+				assert.Len(t, anakin.Packages, 1)
+				assert.Len(t, anakin.Bundles, 3)
+				assert.Len(t, anakin.Others, 1)
+
+				bobaFett, err := LoadFile(filepath.Join(testDir, "boba-fett.json"))
+				require.NoError(t, err)
+				assert.Len(t, bobaFett.Packages, 1)
+				assert.Len(t, bobaFett.Bundles, 2)
+				assert.Len(t, bobaFett.Others, 1)
+
+				globals, err := LoadFile(filepath.Join(testDir, fmt.Sprintf("%s.json", globalName)))
+				require.NoError(t, err)
+				assert.Len(t, globals.Packages, 0)
+				assert.Len(t, globals.Bundles, 0)
+				assert.Len(t, globals.Others, 2)
+
+				all, err := LoadDir(testDir)
+				require.NoError(t, err)
+
+				assert.Len(t, all.Packages, 2)
+				assert.Len(t, all.Bundles, 5)
+				assert.Len(t, all.Others, 4)
 			}
 		})
 	}
@@ -233,12 +254,6 @@ func TestWriteFile(t *testing.T) {
 			name:      "Error/NotAFile",
 			cfg:       buildValidDeclarativeConfig(true),
 			setupFile: getDirectory,
-			assertion: require.Error,
-		},
-		{
-			name:      "Error/MissingProvidedPackage",
-			cfg:       buildInvalidDeclarativeConfig(),
-			setupFile: getFilename,
 			assertion: require.Error,
 		},
 	}
@@ -304,6 +319,8 @@ func removeJSONWhitespace(cfg *DeclarativeConfig) {
 		}
 	}
 	for io := range cfg.Others {
-		cfg.Others[io] = []byte(replacer.Replace(string(cfg.Others[io])))
+		for _, v := range cfg.Others[io].data {
+			cfg.Others[io].data = []byte(replacer.Replace(string(v)))
+		}
 	}
 }

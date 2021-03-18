@@ -25,6 +25,42 @@ func mustBase64Decode(in string) []byte {
 	return out
 }
 
+func TestNormalize(t *testing.T) {
+	b := &Bundle{}
+	pkgs := Model{
+		"anakin": {
+			Channels: map[string]*Channel{
+				"alpha": {
+					Bundles: map[string]*Bundle{
+						"anakin.v0.0.1": b,
+					},
+				},
+			},
+		},
+	}
+	t.Run("Success/IgnoreInvalid", func(t *testing.T) {
+		invalidJSON := json.RawMessage(`}`)
+		b.Properties = []Property{{Value: invalidJSON}}
+		pkgs.Normalize()
+		assert.Equal(t, invalidJSON, b.Properties[0].Value)
+	})
+
+	t.Run("Success/Unchanged", func(t *testing.T) {
+		unchanged := json.RawMessage(`{}`)
+		b.Properties = []Property{{Value: unchanged}}
+		pkgs.Normalize()
+		assert.Equal(t, unchanged, b.Properties[0].Value)
+	})
+
+	t.Run("Success/RemoveSpacesAndHTMLEscapes", func(t *testing.T) {
+		withWhitespace := json.RawMessage("{\n\"test\":\"\u003C\"   }")
+		expected := json.RawMessage(`{"test":"<"}`)
+		b.Properties = []Property{{Value: withWhitespace}}
+		pkgs.Normalize()
+		assert.Equal(t, expected, b.Properties[0].Value)
+	})
+}
+
 func TestChannelHead(t *testing.T) {
 	type spec struct {
 		name      string
@@ -274,8 +310,8 @@ func TestValidators(t *testing.T) {
 				Package: pkg,
 				Name:    "light",
 				Bundles: map[string]*Bundle{
-					"anakin.v0.0.0": &Bundle{Name: "anakin.v0.0.0"},
-					"anakin.v0.0.1": &Bundle{Name: "anakin.v0.0.1"},
+					"anakin.v0.0.0": {Name: "anakin.v0.0.0"},
+					"anakin.v0.0.1": {Name: "anakin.v0.0.1"},
 				},
 			},
 			assertion: require.Error,
@@ -286,7 +322,7 @@ func TestValidators(t *testing.T) {
 				Package: pkg,
 				Name:    "light",
 				Bundles: map[string]*Bundle{
-					"foo": &Bundle{Name: "bar"},
+					"foo": {Name: "bar"},
 				},
 			},
 			assertion: require.Error,
@@ -308,7 +344,7 @@ func TestValidators(t *testing.T) {
 				Package: pkg,
 				Name:    "light",
 				Bundles: map[string]*Bundle{
-					"anakin.v0.0.0": &Bundle{
+					"anakin.v0.0.0": {
 						Package: pkg,
 						Channel: ch,
 						Name:    "anakin.v0.0.0",
@@ -328,10 +364,13 @@ func TestValidators(t *testing.T) {
 				Replaces: "anakin.v0.0.1",
 				Skips:    []string{"anakin.v0.0.2"},
 				Properties: []Property{
-					providedPackageProp("anakin", "0.1.0"),
+					packageProp("anakin", "0.1.0"),
+					packageProvidedProp("anakin", "0.1.0"),
+					gvkProp("skywalker.me", "v1alpha1", "PodRacer"),
+					gvkProvidedProp("skywalker.me", "v1alpha1", "PodRacer"),
+					skipsProp("anakin.v0.0.2"),
 					channelProp("light", "anakin.v0.0.1"),
 					channelProp("dark", "anakin.v0.0.1"),
-					skipsProp("anakin.v0.0.2"),
 				},
 			},
 			assertion: require.NoError,
@@ -399,6 +438,93 @@ func TestValidators(t *testing.T) {
 			assertion: require.Error,
 		},
 		{
+			name: "Bundle/Error/SkipsNotInPackage",
+			v: &Bundle{
+				Package:    pkg,
+				Channel:    ch,
+				Name:       "anakin.v0.1.0",
+				Replaces:   "anakin.v0.0.1",
+				Properties: []Property{{Type: "custom", Value: json.RawMessage("{}")}},
+				Skips:      []string{"foobar"},
+			},
+			assertion: require.Error,
+		},
+		{
+			name: "Bundle/Error/MissingPackageProvided",
+			v: &Bundle{
+				Package:  pkg,
+				Channel:  ch,
+				Name:     "anakin.v0.1.0",
+				Image:    "",
+				Replaces: "anakin.v0.0.1",
+				Skips:    []string{"anakin.v0.0.2"},
+				Properties: []Property{
+					skipsProp("anakin.v0.0.2"),
+					channelProp("light", "anakin.v0.0.1"),
+					channelProp("dark", "anakin.v0.0.1"),
+				},
+			},
+			assertion: require.Error,
+		},
+		{
+			name: "Bundle/Error/NoMatchingPackageProvided",
+			v: &Bundle{
+				Package:  pkg,
+				Channel:  ch,
+				Name:     "anakin.v0.1.0",
+				Image:    "",
+				Replaces: "anakin.v0.0.1",
+				Skips:    []string{"anakin.v0.0.2"},
+				Properties: []Property{
+					packageProvidedProp("anakin", "0.1.0"),
+					skipsProp("anakin.v0.0.2"),
+					channelProp("light", "anakin.v0.0.1"),
+					channelProp("dark", "anakin.v0.0.1"),
+				},
+			},
+			assertion: require.Error,
+		},
+		{
+			name: "Bundle/Error/NoMatchingGVKProvided",
+			v: &Bundle{
+				Package:  pkg,
+				Channel:  ch,
+				Name:     "anakin.v0.1.0",
+				Image:    "",
+				Replaces: "anakin.v0.0.1",
+				Skips:    []string{"anakin.v0.0.2"},
+				Properties: []Property{
+					packageProp("anakin", "0.1.0"),
+					packageProvidedProp("anakin", "0.1.0"),
+					gvkProp("skywalker.me", "v1alpha1", "PodRacer"),
+					skipsProp("anakin.v0.0.2"),
+					channelProp("light", "anakin.v0.0.1"),
+					channelProp("dark", "anakin.v0.0.1"),
+				},
+			},
+			assertion: require.Error,
+		},
+		{
+			name: "Bundle/Error/NoMatchingGVK",
+			v: &Bundle{
+				Package:  pkg,
+				Channel:  ch,
+				Name:     "anakin.v0.1.0",
+				Image:    "",
+				Replaces: "anakin.v0.0.1",
+				Skips:    []string{"anakin.v0.0.2"},
+				Properties: []Property{
+					packageProp("anakin", "0.1.0"),
+					packageProvidedProp("anakin", "0.1.0"),
+					gvkProvidedProp("skywalker.me", "v1alpha1", "PodRacer"),
+					skipsProp("anakin.v0.0.2"),
+					channelProp("light", "anakin.v0.0.1"),
+					channelProp("dark", "anakin.v0.0.1"),
+				},
+			},
+			assertion: require.Error,
+		},
+		{
 			name: "Property/Success/Valid",
 			v: Property{
 				Type:  "custom.type",
@@ -437,6 +563,30 @@ func TestValidators(t *testing.T) {
 			},
 			assertion: require.Error,
 		},
+		{
+			name: "RelatedImage/Success/Valid",
+			v: RelatedImage{
+				Name:  "foo",
+				Image: "bar",
+			},
+			assertion: require.NoError,
+		},
+		{
+			name: "RelatedImage/Error/NoName",
+			v: RelatedImage{
+				Name:  "",
+				Image: "",
+			},
+			assertion: require.Error,
+		},
+		{
+			name: "RelatedImage/Error/NoImage",
+			v: RelatedImage{
+				Name:  "foo",
+				Image: "",
+			},
+			assertion: require.Error,
+		},
 	}
 	for _, s := range specs {
 		t.Run(s.name, func(t *testing.T) {
@@ -446,17 +596,32 @@ func TestValidators(t *testing.T) {
 }
 
 func makePackageChannelBundle() (*Package, *Channel, *Bundle) {
-	bundle := &Bundle{
+	bundle1 := &Bundle{
 		Name:  "anakin.v0.0.1",
 		Image: "anakin-operator:v0.0.1",
 		Properties: []Property{
-			providedPackageProp("anakin", "0.0.1"),
+			packageProp("anakin", "0.0.1"),
+			packageProvidedProp("anakin", "0.0.1"),
+			gvkProp("skywalker.me", "v1alpha1", "PodRacer"),
+			gvkProvidedProp("skywalker.me", "v1alpha1", "PodRacer"),
+		},
+	}
+	bundle2 := &Bundle{
+		Name:     "anakin.v0.0.2",
+		Image:    "anakin-operator:v0.0.2",
+		Replaces: "anakin.v0.0.1",
+		Properties: []Property{
+			packageProp("anakin", "0.0.2"),
+			packageProvidedProp("anakin", "0.0.2"),
+			gvkProp("skywalker.me", "v1alpha1", "PodRacer"),
+			gvkProvidedProp("skywalker.me", "v1alpha1", "PodRacer"),
 		},
 	}
 	ch := &Channel{
 		Name: "light",
 		Bundles: map[string]*Bundle{
-			"anakin.v0.0.1": bundle,
+			"anakin.v0.0.1": bundle1,
+			"anakin.v0.0.2": bundle2,
 		},
 	}
 	pkg := &Package{
@@ -467,11 +632,10 @@ func makePackageChannelBundle() (*Package, *Channel, *Bundle) {
 		},
 	}
 
-	bundle.Channel = ch
-	bundle.Package = pkg
-	ch.Package = pkg
+	bundle1.Channel, bundle2.Channel = ch, ch
+	bundle1.Package, bundle2.Package, ch.Package = pkg, pkg, pkg
 
-	return pkg, ch, bundle
+	return pkg, ch, bundle2
 }
 
 func makeProperty(typ string, value interface{}) Property {
@@ -485,10 +649,33 @@ func makeProperty(typ string, value interface{}) Property {
 	}
 }
 
-func providedPackageProp(pkg, version string) Property {
-	return makeProperty("olm.package.provided", map[string]string{
+func packageProp(pkg, version string) Property {
+	return makeProperty(propertyTypePackage, map[string]string{
 		"packageName": pkg,
 		"version":     version,
+	})
+}
+
+func packageProvidedProp(pkg, version string) Property {
+	return makeProperty(propertyTypePackageProvided, map[string]string{
+		"packageName": pkg,
+		"version":     version,
+	})
+}
+
+func gvkProp(group, version, kind string) Property {
+	return makeProperty("olm.gvk", map[string]string{
+		"group":   group,
+		"kind":    kind,
+		"version": version,
+	})
+}
+
+func gvkProvidedProp(group, version, kind string) Property {
+	return makeProperty("olm.gvk.provided", map[string]string{
+		"group":   group,
+		"kind":    kind,
+		"version": version,
 	})
 }
 

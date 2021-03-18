@@ -16,11 +16,11 @@ func TestConvertToModel(t *testing.T) {
 
 	specs := []spec{
 		{
-			name:      "Error/BundleMissingProvidedPackage",
+			name:      "Error/BundleMissingPackageName",
 			assertion: require.Error,
 			cfg: DeclarativeConfig{
 				Packages: []pkg{newTestPackage("foo", "alpha", svgSmallCircle)},
-				Bundles:  []bundle{newTestBundle("foo", "0.1.0", skipProvidedPackage())},
+				Bundles:  []bundle{{}},
 			},
 		},
 		{
@@ -37,6 +37,14 @@ func TestConvertToModel(t *testing.T) {
 			cfg: DeclarativeConfig{
 				Packages: []pkg{newTestPackage("foo", "alpha", svgSmallCircle)},
 				Bundles:  []bundle{newTestBundle("foo", "0.1.0")},
+			},
+		},
+		{
+			name:      "Error/InvalidProperties",
+			assertion: require.Error,
+			cfg: DeclarativeConfig{
+				Packages: []pkg{newTestPackage("foo", "alpha", svgSmallCircle)},
+				Bundles:  []bundle{newTestBundle("foo", "0.1.0", withChannel("alpha", "1"), withChannel("alpha", "2"))},
 			},
 		},
 		{

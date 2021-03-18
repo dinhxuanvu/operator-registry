@@ -27,11 +27,21 @@ func buildValidDeclarativeConfig(includeUnrecognized bool) DeclarativeConfig {
 		withChannel("mando", testBundleName("boba-fett", "1.0.0")),
 	)
 
-	var others []json.RawMessage
+	var others []meta
 	if includeUnrecognized {
-		others = []json.RawMessage{
-			json.RawMessage(`{ "schema": "custom.1" }`),
-			json.RawMessage(`{ "schema": "custom.2" }`),
+		others = []meta{
+			{schema: "custom.1", data: json.RawMessage(`{"schema": "custom.1"}`)},
+			{schema: "custom.2", data: json.RawMessage(`{"schema": "custom.2"}`)},
+			{schema: "custom.3", pkgName: "anakin", data: json.RawMessage(`{
+				"schema": "custom.3",
+				"package": "anakin",
+				"myField": "foobar"
+			}`)},
+			{schema: "custom.3", pkgName: "boba-fett", data: json.RawMessage(`{
+				"schema": "custom.3",
+				"package": "boba-fett",
+				"myField": "foobar"
+			}`)},
 		}
 	}
 
@@ -48,29 +58,7 @@ func buildValidDeclarativeConfig(includeUnrecognized bool) DeclarativeConfig {
 	}
 }
 
-func buildInvalidDeclarativeConfig() DeclarativeConfig {
-	return DeclarativeConfig{
-		Packages: []pkg{},
-		Bundles: []bundle{
-			newTestBundle("anakin", "0.1.0", skipProvidedPackage()),
-		},
-	}
-}
-
 type bundleOpt func(*bundle)
-
-func skipProvidedPackage() func(*bundle) {
-	return func(b *bundle) {
-		i := 0
-		for _, p := range b.Properties {
-			if p.Type != propertyTypeProvidedPackage {
-				b.Properties[i] = p
-				i++
-			}
-		}
-		b.Properties = b.Properties[:i]
-	}
-}
 
 func withChannel(name, replaces string) func(*bundle) {
 	return func(b *bundle) {
@@ -109,6 +97,18 @@ func skipsPropertyValue(skips string) json.RawMessage {
 	return json.RawMessage(fmt.Sprintf("%q", skips))
 }
 
+const (
+	propertyTypePackage         = "olm.package"
+	propertyTypeProvidedPackage = "olm.package.provided"
+)
+
+func packageProperty(packageName, version string) property {
+	return property{
+		Type:  propertyTypePackage,
+		Value: providedPackagePropertyValue(packageName, version),
+	}
+}
+
 func providedPackageProperty(packageName, version string) property {
 	return property{
 		Type:  propertyTypeProvidedPackage,
@@ -122,11 +122,19 @@ func providedPackagePropertyValue(packageName, version string) json.RawMessage {
 
 func newTestBundle(packageName, version string, opts ...bundleOpt) bundle {
 	b := bundle{
-		Schema: schemaBundle,
-		Name:   testBundleName(packageName, version),
-		Image:  testBundleImage(packageName, version),
+		Schema:  schemaBundle,
+		Name:    testBundleName(packageName, version),
+		Package: packageName,
+		Image:   testBundleImage(packageName, version),
 		Properties: []property{
+			packageProperty(packageName, version),
 			providedPackageProperty(packageName, version),
+		},
+		RelatedImages: []relatedImage{
+			{
+				Name:  "bundle",
+				Image: testBundleImage(packageName, version),
+			},
 		},
 	}
 	for _, opt := range opts {
@@ -189,6 +197,10 @@ func buildAnakinPkgModel() *model.Package {
 	for version, channels := range versions {
 		props := []model.Property{
 			{
+				Type:  propertyTypePackage,
+				Value: providedPackagePropertyValue(pkgName, version),
+			},
+			{
 				Type:  propertyTypeProvidedPackage,
 				Value: providedPackagePropertyValue(pkgName, version),
 			},
@@ -217,12 +229,13 @@ func buildAnakinPkgModel() *model.Package {
 				Replaces:   channel.Replaces,
 				Skips:      skips,
 				Properties: props,
+				RelatedImages: []model.RelatedImage{{
+					Name:  "bundle",
+					Image: testBundleImage(pkgName, version),
+				}},
 			}
 			ch.Bundles[bName] = bundle
 		}
-	}
-	if err := pkg.Validate(); err != nil {
-		panic(err)
 	}
 	return pkg
 }
@@ -253,6 +266,10 @@ func buildBobaFettPkgModel() *model.Package {
 	for version, channels := range versions {
 		props := []model.Property{
 			{
+				Type:  propertyTypePackage,
+				Value: providedPackagePropertyValue(pkgName, version),
+			},
+			{
 				Type:  propertyTypeProvidedPackage,
 				Value: providedPackagePropertyValue(pkgName, version),
 			},
@@ -274,12 +291,13 @@ func buildBobaFettPkgModel() *model.Package {
 				Image:      bImage,
 				Replaces:   channel.Replaces,
 				Properties: props,
+				RelatedImages: []model.RelatedImage{{
+					Name:  "bundle",
+					Image: testBundleImage(pkgName, version),
+				}},
 			}
 			ch.Bundles[bName] = bundle
 		}
-	}
-	if err := pkg.Validate(); err != nil {
-		panic(err)
 	}
 	return pkg
 }

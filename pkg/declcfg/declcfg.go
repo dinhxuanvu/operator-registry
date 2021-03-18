@@ -3,6 +3,7 @@ package declcfg
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -11,24 +12,26 @@ import (
 type DeclarativeConfig struct {
 	Packages []pkg
 	Bundles  []bundle
-	Others   []json.RawMessage
+	Others   []meta
 }
 
 func LoadDir(configDir string) (*DeclarativeConfig, error) {
 	cfg := &DeclarativeConfig{}
-	files, err := ioutil.ReadDir(configDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read declarative configs dir: %v", err)
-	}
-	for _, finfo := range files {
-		filename := filepath.Join(configDir, finfo.Name())
-		fileCfg, err := LoadFile(filename)
+
+	if err := filepath.Walk(configDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			return nil, fmt.Errorf("could not load config file %q: %v", filename, err)
+			return err
+		}
+		fileCfg, err := LoadFile(path)
+		if err != nil {
+			return fmt.Errorf("could not load config file %q: %v", path, err)
 		}
 		cfg.Packages = append(cfg.Packages, fileCfg.Packages...)
 		cfg.Bundles = append(cfg.Bundles, fileCfg.Bundles...)
 		cfg.Others = append(cfg.Others, fileCfg.Others...)
+		return nil
+	}); err != nil {
+		return nil, fmt.Errorf("failed to read declarative configs dir: %v", err)
 	}
 	return cfg, nil
 }
@@ -38,27 +41,21 @@ const (
 	schemaBundle  = "olm.bundle"
 )
 
-func LoadFile(configFile string) (*DeclarativeConfig, error) {
-	f, err := os.Open(configFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %v", err)
-	}
-	defer f.Close()
-
+func LoadReader(r io.Reader) (*DeclarativeConfig, error) {
 	cfg := &DeclarativeConfig{}
-	dec := json.NewDecoder(f)
+	dec := json.NewDecoder(r)
 	for dec.More() {
 		doc := &json.RawMessage{}
 		if err := dec.Decode(doc); err != nil {
 			return nil, fmt.Errorf("parse error at offset %d: %v", dec.InputOffset(), err)
 		}
 
-		var in struct{ Schema string }
+		var in meta
 		if err := json.Unmarshal(*doc, &in); err != nil {
-			return nil, fmt.Errorf("parse object for schema at offset %d: %v", dec.InputOffset(), err)
+			return nil, fmt.Errorf("parse meta object at offset %d: %v", dec.InputOffset(), err)
 		}
 
-		switch in.Schema {
+		switch in.Schema() {
 		case schemaPackage:
 			var p pkg
 			if err := json.Unmarshal(*doc, &p); err != nil {
@@ -72,11 +69,22 @@ func LoadFile(configFile string) (*DeclarativeConfig, error) {
 			}
 			cfg.Bundles = append(cfg.Bundles, b)
 		default:
-			cfg.Others = append(cfg.Others, *doc)
+			cfg.Others = append(cfg.Others, in)
 		}
 	}
 	return cfg, nil
 }
+
+func LoadFile(configFile string) (*DeclarativeConfig, error) {
+	f, err := os.Open(configFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open file: %v", err)
+	}
+	defer f.Close()
+	return LoadReader(f)
+}
+
+const globalName = "__global"
 
 func WriteDir(cfg DeclarativeConfig, configDir string) error {
 	entries, err := ioutil.ReadDir(configDir)
@@ -92,26 +100,36 @@ func WriteDir(cfg DeclarativeConfig, configDir string) error {
 
 	bundlesByPackage := map[string][]bundle{}
 	for _, b := range cfg.Bundles {
-		props, err := parseProperties(b.Properties)
-		if err != nil {
-			return fmt.Errorf("parse properties for bundle %q: %v", b.Name, err)
+		bundlesByPackage[b.Package] = append(bundlesByPackage[b.Package], b)
+	}
+	othersByPackage := map[string][]meta{}
+	for _, o := range cfg.Others {
+		pkgName := o.Package()
+		if pkgName == "" {
+			pkgName = globalName
 		}
-		pkgName := props.providedPackage.PackageName
-		bundlesByPackage[pkgName] = append(bundlesByPackage[pkgName], b)
+		othersByPackage[pkgName] = append(othersByPackage[pkgName], o)
 	}
 
 	for _, p := range cfg.Packages {
 		fcfg := DeclarativeConfig{
 			Packages: []pkg{p},
 			Bundles:  bundlesByPackage[p.Name],
+			Others:   othersByPackage[p.Name],
 		}
 		if err := WriteFile(fcfg, filepath.Join(configDir, fmt.Sprintf("%s.json", p.Name))); err != nil {
 			return err
 		}
 	}
-	ocfg := DeclarativeConfig{Others: cfg.Others}
-	if err := WriteFile(ocfg, filepath.Join(configDir, "__unrecognized-schema.json")); err != nil {
-		return err
+
+	globals, ok := othersByPackage[globalName]
+	if ok {
+		ocfg := DeclarativeConfig{
+			Others: globals,
+		}
+		if err := WriteFile(ocfg, filepath.Join(configDir, fmt.Sprintf("%s.json", globalName))); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -128,11 +146,7 @@ func WriteFile(cfg DeclarativeConfig, configFile string) error {
 
 	bundlesByPackage := map[string][]bundle{}
 	for _, b := range cfg.Bundles {
-		props, err := parseProperties(b.Properties)
-		if err != nil {
-			return fmt.Errorf("parse properties for bundle %q: %v", b.Name, err)
-		}
-		pkgName := props.providedPackage.PackageName
+		pkgName := b.Package
 		bundlesByPackage[pkgName] = append(bundlesByPackage[pkgName], b)
 	}
 

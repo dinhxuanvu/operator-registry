@@ -31,13 +31,6 @@ func TestParseProperties(t *testing.T) {
 			expectErrType: propertyParseError{},
 		},
 		{
-			name: "Error/InvalidProvidedPackage",
-			properties: []property{
-				{Type: propertyTypeProvidedPackage, Value: json.RawMessage(`""`)},
-			},
-			expectErrType: propertyParseError{},
-		},
-		{
 			name: "Error/DuplicateChannels",
 			properties: []property{
 				channelProperty("alpha", "foo.v0.0.3"),
@@ -47,21 +40,8 @@ func TestParseProperties(t *testing.T) {
 			expectErrType: propertyDuplicateError{},
 		},
 		{
-			name: "Error/MultipleProvidedPackages",
-			properties: []property{
-				providedPackageProperty("foo", "0.1.0"),
-				providedPackageProperty("bar", "0.1.0"),
-			},
-			expectErrType: propertyMultipleNotAllowedError{},
-		},
-		{
-			name:          "Error/NoProvidedPackage",
-			expectErrType: propertyNotFoundError{},
-		},
-		{
 			name: "Success/Valid",
 			properties: []property{
-				providedPackageProperty("foo", "0.1.0"),
 				channelProperty("alpha", "foo.v0.0.3"),
 				channelProperty("beta", "foo.v0.0.4"),
 				skipsProperty("foo.v0.0.1"),
@@ -72,8 +52,7 @@ func TestParseProperties(t *testing.T) {
 					{Name: "alpha", Replaces: "foo.v0.0.3"},
 					{Name: "beta", Replaces: "foo.v0.0.4"},
 				},
-				skips:           []string{"foo.v0.0.1", "foo.v0.0.2"},
-				providedPackage: providedPackage{PackageName: "foo", Version: "0.1.0"},
+				skips: []string{"foo.v0.0.1", "foo.v0.0.2"},
 			},
 		},
 	}

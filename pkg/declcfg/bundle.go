@@ -3,6 +3,7 @@ package declcfg
 type bundle struct {
 	Schema        string         `json:"schema"`
 	Name          string         `json:"name"`
+	Package       string         `json:"package"`
 	Image         string         `json:"image"`
 	Properties    []property     `json:"properties,omitempty"`
 	RelatedImages []relatedImage `json:"relatedImages,omitempty"`

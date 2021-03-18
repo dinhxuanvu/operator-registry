@@ -6,76 +6,40 @@ import (
 	"github.com/operator-framework/operator-registry/pkg/model"
 )
 
-type packageBundles struct {
-	p       pkg
-	bundles []bundle
-	props   map[string]*properties
-}
-
 func ConvertToModel(cfg DeclarativeConfig) (model.Model, error) {
-	pbs, err := buildPackageBundles(cfg)
-	if err != nil {
-		return nil, err
-	}
-	mpkgs := initPackages(pbs)
-	if err := mpkgs.Validate(); err != nil {
-		return nil, err
-	}
-	mpkgs.Normalize()
-	return mpkgs, nil
-}
-
-func buildPackageBundles(cfg DeclarativeConfig) (map[string]*packageBundles, error) {
-	pbs := map[string]*packageBundles{}
-
+	mpkgs := model.Model{}
+	defaultChannels := map[string]string{}
 	for _, p := range cfg.Packages {
-		pbs[p.Name] = &packageBundles{
-			p:     p,
-			props: map[string]*properties{},
+		mpkg := &model.Package{
+			Name:        p.Name,
+			Description: p.Description,
+			Channels:    map[string]*model.Channel{},
 		}
+		if p.Icon != nil {
+			mpkg.Icon = &model.Icon{
+				Data:      p.Icon.Data,
+				MediaType: p.Icon.MediaType,
+			}
+		}
+		defaultChannels[p.Name] = p.DefaultChannel
+		mpkgs[p.Name] = mpkg
 	}
 
 	for _, b := range cfg.Bundles {
+		defaultChannelName := defaultChannels[b.Package]
+		if b.Package == "" {
+			return nil, fmt.Errorf("package name must be set for bundle %q", b.Name)
+		}
+		mpkg, ok := mpkgs[b.Package]
+		if !ok {
+			return nil, fmt.Errorf("unknown package %q for bundle %q", b.Package, b.Name)
+		}
+
 		props, err := parseProperties(b.Properties)
 		if err != nil {
 			return nil, fmt.Errorf("parse properties for bundle %q: %v", b.Name, err)
 		}
-		pkgName := props.providedPackage.PackageName
-		pb, ok := pbs[pkgName]
-		if !ok {
-			return nil, fmt.Errorf("unknown package %q for bundle %q", pkgName, b.Name)
-		}
-		pb.bundles = append(pb.bundles, b)
-		pb.props[b.Name] = props
-	}
-	return pbs, nil
-}
-
-func initPackages(pbs map[string]*packageBundles) model.Model {
-	mpkgs := model.Model{}
-	for _, pb := range pbs {
-		mpkgs[pb.p.Name] = initPackage(pb)
-	}
-	return mpkgs
-}
-
-func initPackage(pb *packageBundles) *model.Package {
-	p, bundles, props := pb.p, pb.bundles, pb.props
-	mpkg := &model.Package{
-		Name:        p.Name,
-		Description: p.Description,
-	}
-	if pb.p.Icon != nil {
-		mpkg.Icon = &model.Icon{
-			Data:      p.Icon.Data,
-			MediaType: p.Icon.MediaType,
-		}
-	}
-	mpkg.Channels = map[string]*model.Channel{}
-
-	for _, b := range bundles {
-		bundleProps := props[b.Name]
-		for _, bundleChannel := range bundleProps.channels {
+		for _, bundleChannel := range props.channels {
 			pkgChannel, ok := mpkg.Channels[bundleChannel.Name]
 			if !ok {
 				pkgChannel = &model.Channel{
@@ -83,33 +47,38 @@ func initPackage(pb *packageBundles) *model.Package {
 					Name:    bundleChannel.Name,
 					Bundles: map[string]*model.Bundle{},
 				}
-				if bundleChannel.Name == p.DefaultChannel {
+				if bundleChannel.Name == defaultChannelName {
 					mpkg.DefaultChannel = pkgChannel
 				}
 				mpkg.Channels[bundleChannel.Name] = pkgChannel
 			}
 
 			pkgChannel.Bundles[b.Name] = &model.Bundle{
-				Package:    mpkg,
-				Channel:    pkgChannel,
-				Name:       b.Name,
-				Image:      b.Image,
-				Replaces:   bundleChannel.Replaces,
-				Skips:      bundleProps.skips,
-				Properties: propertiesToModelProperties(b.Properties),
+				Package:       mpkg,
+				Channel:       pkgChannel,
+				Name:          b.Name,
+				Image:         b.Image,
+				Replaces:      bundleChannel.Replaces,
+				Skips:         props.skips,
+				Properties:    propertiesToModelProperties(b.Properties),
+				RelatedImages: relatedImagesToModelRelatedImages(b.RelatedImages),
 			}
 		}
-	}
-	if mpkg.DefaultChannel == nil {
-		dch := &model.Channel{
-			Package: mpkg,
-			Name:    p.DefaultChannel,
-			Bundles: nil,
+		if mpkg.DefaultChannel == nil {
+			dch := &model.Channel{
+				Package: mpkg,
+				Name:    defaultChannelName,
+			}
+			mpkg.DefaultChannel = dch
+			mpkg.Channels[dch.Name] = dch
 		}
-		mpkg.DefaultChannel = dch
-		mpkg.Channels[dch.Name] = dch
 	}
-	return mpkg
+
+	if err := mpkgs.Validate(); err != nil {
+		return nil, err
+	}
+	mpkgs.Normalize()
+	return mpkgs, nil
 }
 
 func propertiesToModelProperties(in []property) []model.Property {
@@ -118,6 +87,17 @@ func propertiesToModelProperties(in []property) []model.Property {
 		out = append(out, model.Property{
 			Type:  p.Type,
 			Value: p.Value,
+		})
+	}
+	return out
+}
+
+func relatedImagesToModelRelatedImages(in []relatedImage) []model.RelatedImage {
+	var out []model.RelatedImage
+	for _, p := range in {
+		out = append(out, model.RelatedImage{
+			Name:  p.Name,
+			Image: p.Image,
 		})
 	}
 	return out

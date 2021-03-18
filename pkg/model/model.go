@@ -184,13 +184,14 @@ func (c *Channel) Validate() error {
 }
 
 type Bundle struct {
-	Package    *Package
-	Channel    *Channel
-	Name       string
-	Image      string
-	Replaces   string
-	Skips      []string
-	Properties []Property
+	Package       *Package
+	Channel       *Channel
+	Name          string
+	Image         string
+	Replaces      string
+	Skips         []string
+	Properties    []Property
+	RelatedImages []RelatedImage
 }
 
 func (b *Bundle) Validate() error {
@@ -216,16 +217,112 @@ func (b *Bundle) Validate() error {
 			return fmt.Errorf("invalid property[%d]: %v", i, err)
 		}
 	}
-	// TODO(joelanford): What is the expected presence of skipped CSVs?
 	for i, skip := range b.Skips {
 		if skip == "" {
 			return fmt.Errorf("skip[%d] is empty", i)
 		}
 	}
+	for i, relatedImage := range b.RelatedImages {
+		if err := relatedImage.Validate(); err != nil {
+			return fmt.Errorf("invalid related image[%d]: %v", i, err)
+		}
+	}
 
-	// TODO(joelanford): Validate image string?
+	if err := validateBackCompatProperties(b.Properties); err != nil {
+		return err
+	}
 
 	return nil
+}
+
+const (
+	propertyTypePackage         = "olm.package"
+	propertyTypePackageProvided = "olm.package.provided"
+	propertyTypeGVK             = "olm.gvk"
+	propertyTypeGVKProvided     = "olm.gvk.provided"
+)
+
+func validateBackCompatProperties(in []Property) error {
+	packageProps := map[string]struct{}{}
+	packageProvidedProps := map[string]struct{}{}
+
+	// Ignore "plural" field for GVK properties for the purposes of this validation.
+	type gvk struct {
+		Group   string `json:"group"`
+		Version string `json:"version"`
+		Kind    string `json:"kind"`
+	}
+	gvkProps := map[gvk]struct{}{}
+	gvkProvidedProps := map[gvk]struct{}{}
+
+	for i, prop := range in {
+		k := string(prop.Value)
+		switch prop.Type {
+		case propertyTypePackage:
+			packageProps[k] = struct{}{}
+		case propertyTypePackageProvided:
+			packageProvidedProps[k] = struct{}{}
+		case propertyTypeGVK:
+			var v gvk
+			if err := json.Unmarshal(prop.Value, &v); err != nil {
+				return propertyParseError{i, prop.Type, err}
+			}
+			gvkProps[v] = struct{}{}
+		case propertyTypeGVKProvided:
+			var v gvk
+			if err := json.Unmarshal(prop.Value, &v); err != nil {
+				return propertyParseError{i, prop.Type, err}
+			}
+			gvkProvidedProps[v] = struct{}{}
+		}
+	}
+
+	if len(packageProvidedProps) != 1 {
+		return fmt.Errorf("property type %q is required", propertyTypePackageProvided)
+	}
+
+	for k := range packageProps {
+		if _, ok := packageProvidedProps[k]; !ok {
+			return matchingPropertyMissingError{propertyTypePackage, k, propertyTypePackageProvided}
+		}
+	}
+	for k := range packageProvidedProps {
+		if _, ok := packageProps[k]; !ok {
+			return matchingPropertyMissingError{propertyTypePackageProvided, k, propertyTypePackage}
+		}
+	}
+	for k := range gvkProps {
+		if _, ok := gvkProvidedProps[k]; !ok {
+			return matchingPropertyMissingError{propertyTypeGVK, k, propertyTypeGVKProvided}
+		}
+	}
+	for k := range gvkProvidedProps {
+		if _, ok := gvkProps[k]; !ok {
+			return matchingPropertyMissingError{propertyTypeGVKProvided, k, propertyTypeGVK}
+		}
+	}
+
+	return nil
+}
+
+type propertyParseError struct {
+	i   int
+	t   string
+	err error
+}
+
+func (e propertyParseError) Error() string {
+	return fmt.Sprintf("properties[%d].value parse error for %q: %v", e.i, e.t, e.err)
+}
+
+type matchingPropertyMissingError struct {
+	foundType    string
+	foundValue   interface{}
+	expectedType string
+}
+
+func (e matchingPropertyMissingError) Error() string {
+	return fmt.Sprintf("property %q for %+v requires matching %q property", e.foundType, e.foundValue, e.expectedType)
 }
 
 type Property struct {
@@ -245,6 +342,21 @@ func (p Property) Validate() error {
 	var v json.RawMessage
 	if err := json.Unmarshal(p.Value, &v); err != nil {
 		return fmt.Errorf("invalid value: %v", err)
+	}
+	return nil
+}
+
+type RelatedImage struct {
+	Name  string
+	Image string
+}
+
+func (i RelatedImage) Validate() error {
+	if i.Name == "" {
+		return fmt.Errorf("name must be set")
+	}
+	if i.Image == "" {
+		return fmt.Errorf("image must be set")
 	}
 	return nil
 }

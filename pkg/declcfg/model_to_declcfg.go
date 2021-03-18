@@ -46,12 +46,11 @@ func traverseModelChannels(mpkg model.Package) []bundle {
 			b, ok := bundles[chb.Name]
 			if !ok {
 				b = &bundle{
-					Schema: schemaBundle,
-					Name:   chb.Name,
-					Image:  chb.Image,
-
-					// TODO(joelanford): Should related images be included in the model?,
-					RelatedImages: nil,
+					Schema:        schemaBundle,
+					Name:          chb.Name,
+					Package:       chb.Package.Name,
+					Image:         chb.Image,
+					RelatedImages: modelRelatedImagesToRelatedImages(chb.RelatedImages),
 				}
 				bundles[b.Name] = b
 			}
@@ -63,6 +62,17 @@ func traverseModelChannels(mpkg model.Package) []bundle {
 	for _, b := range bundles {
 		b.Properties = deduplicateProperties(b.Properties)
 		out = append(out, *b)
+	}
+	return out
+}
+
+func modelRelatedImagesToRelatedImages(relatedImages []model.RelatedImage) []relatedImage {
+	var out []relatedImage
+	for _, ri := range relatedImages {
+		out = append(out, relatedImage{
+			Name:  ri.Name,
+			Image: ri.Image,
+		})
 	}
 	return out
 }
