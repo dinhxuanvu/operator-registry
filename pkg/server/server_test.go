@@ -69,20 +69,18 @@ func cfgStore() *registry.Querier {
 	defer os.RemoveAll(tmpDir)
 
 	dbFile := filepath.Join(tmpDir, "test.db")
-	objectsDir := filepath.Join(tmpDir, "objects")
 
 	dbStore := dbStore(dbFile)
 	m, err := sqlite.ToModel(context.TODO(), dbStore)
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	if err := sqlite.WriteBundleObjects(context.TODO(), objectsDir, dbStore); err != nil {
+	objs, err := sqlite.GetBundleObjects(context.TODO(), dbStore)
+	if err != nil {
 		logrus.Fatal(err)
 	}
 	store := registry.NewQuerier(m)
-	if err := store.LoadBundleObjects(objectsDir); err != nil {
-		logrus.Fatal(err)
-	}
+	store.SetBundleObjects(objs)
 	return store
 }
 

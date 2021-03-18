@@ -77,5 +77,5 @@ func TestConvertToModelRoundtrip(t *testing.T) {
 
 	assert.Equal(t, expected.Packages, actual.Packages)
 	assert.Equal(t, expected.Bundles, actual.Bundles)
-	assert.Len(t, actual.Others, 0, "expected unrecognized schemas not to make the roundtrip")
+	assert.Len(t, actual.others, 0, "expected unrecognized schemas not to make the roundtrip")
 }

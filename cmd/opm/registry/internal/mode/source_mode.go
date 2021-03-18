@@ -14,8 +14,10 @@ import (
 type Mode string
 
 const (
-	ModeSqlite            Mode = "sqlite"
-	ModeDeclarativeConfig Mode = "declcfg"
+	ModeSqlite      Mode = "sqlite"
+	ModeDeclCfgTar  Mode = "declcfgTar"
+	ModeDeclCfgDir  Mode = "declcfgDir"
+	ModeDeclCfgFile Mode = "declcfgFile"
 )
 
 var typeJSON = types.NewType("json", "application/json")
@@ -40,7 +42,7 @@ func DetectSourceMode(path string) (Mode, error) {
 	}
 
 	if info.IsDir() {
-		return ModeDeclarativeConfig, nil
+		return ModeDeclCfgDir, nil
 	}
 
 	t, err := filetype.MatchFile(path)
@@ -50,8 +52,10 @@ func DetectSourceMode(path string) (Mode, error) {
 	switch t {
 	case matchers.TypeSqlite:
 		return ModeSqlite, nil
+	case matchers.TypeTar:
+		return ModeDeclCfgTar, nil
 	case typeJSON:
-		return ModeDeclarativeConfig, nil
+		return ModeDeclCfgFile, nil
 	}
 	return "", fmt.Errorf("cannot use filetype %q as registry source", t)
 }

@@ -54,7 +54,7 @@ func buildValidDeclarativeConfig(includeUnrecognized bool) DeclarativeConfig {
 			a001, a010, a011,
 			b1, b2,
 		},
-		Others: others,
+		others: others,
 	}
 }
 

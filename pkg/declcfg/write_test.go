@@ -13,117 +13,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 )
 
-func TestLoadFile(t *testing.T) {
-	type spec struct {
-		name              string
-		file              string
-		assertion         require.ErrorAssertionFunc
-		expectNumPackages int
-		expectNumBundles  int
-		expectNumOthers   int
-	}
-	specs := []spec{
-		{
-			name:      "Error/NonExistentFile",
-			file:      "testdata/invalid/non-existent.json",
-			assertion: require.Error,
-		},
-		{
-			name:      "Error/NotJSON",
-			file:      "testdata/invalid/not-json.txt",
-			assertion: require.Error,
-		},
-		{
-			name:      "Error/NotJSONObject",
-			file:      "testdata/invalid/not-json-object.json",
-			assertion: require.Error,
-		},
-		{
-			name:      "Error/InvalidPackageJSON",
-			file:      "testdata/invalid/invalid-package-json.json",
-			assertion: require.Error,
-		},
-		{
-			name:      "Error/InvalidBundleJSON",
-			file:      "testdata/invalid/invalid-bundle-json.json",
-			assertion: require.Error,
-		},
-		{
-			name:              "Success/UnrecognizedSchema",
-			file:              "testdata/valid/unrecognized-schema.json",
-			assertion:         require.NoError,
-			expectNumPackages: 1,
-			expectNumBundles:  1,
-			expectNumOthers:   1,
-		},
-		{
-			name:              "Success/ValidFile",
-			file:              "testdata/valid/etcd.json",
-			assertion:         require.NoError,
-			expectNumPackages: 1,
-			expectNumBundles:  6,
-			expectNumOthers:   0,
-		},
-	}
-
-	for _, s := range specs {
-		t.Run(s.name, func(t *testing.T) {
-			cfg, err := LoadFile(s.file)
-			s.assertion(t, err)
-			if err == nil {
-				require.NotNil(t, cfg)
-				assert.Equal(t, len(cfg.Packages), s.expectNumPackages, "unexpected package count")
-				assert.Equal(t, len(cfg.Bundles), s.expectNumBundles, "unexpected bundle count")
-				assert.Equal(t, len(cfg.Others), s.expectNumOthers, "unexpected others count")
-			}
-		})
-	}
-}
-
-func TestLoadDir(t *testing.T) {
-	type spec struct {
-		name              string
-		dir               string
-		assertion         require.ErrorAssertionFunc
-		expectNumPackages int
-		expectNumBundles  int
-		expectNumOthers   int
-	}
-	specs := []spec{
-		{
-			name:      "Error/NonExistentDir",
-			dir:       "testdata/nonexistent",
-			assertion: require.Error,
-		},
-		{
-			name:      "Error/Invalid",
-			dir:       "testdata/invalid",
-			assertion: require.Error,
-		},
-		{
-			name:              "Success/ValidDir",
-			dir:               "testdata/valid",
-			assertion:         require.NoError,
-			expectNumPackages: 3,
-			expectNumBundles:  12,
-			expectNumOthers:   1,
-		},
-	}
-
-	for _, s := range specs {
-		t.Run(s.name, func(t *testing.T) {
-			cfg, err := LoadDir(s.dir)
-			s.assertion(t, err)
-			if err == nil {
-				require.NotNil(t, cfg)
-				assert.Equal(t, len(cfg.Packages), s.expectNumPackages, "unexpected package count")
-				assert.Equal(t, len(cfg.Bundles), s.expectNumBundles, "unexpected bundle count")
-				assert.Equal(t, len(cfg.Others), s.expectNumOthers, "unexpected others count")
-			}
-		})
-	}
-}
-
 func TestWriteDir(t *testing.T) {
 	type spec struct {
 		name      string
@@ -203,26 +92,26 @@ func TestWriteDir(t *testing.T) {
 				require.NoError(t, err)
 				assert.Len(t, anakin.Packages, 1)
 				assert.Len(t, anakin.Bundles, 3)
-				assert.Len(t, anakin.Others, 1)
+				assert.Len(t, anakin.others, 1)
 
 				bobaFett, err := LoadFile(filepath.Join(testDir, "boba-fett.json"))
 				require.NoError(t, err)
 				assert.Len(t, bobaFett.Packages, 1)
 				assert.Len(t, bobaFett.Bundles, 2)
-				assert.Len(t, bobaFett.Others, 1)
+				assert.Len(t, bobaFett.others, 1)
 
 				globals, err := LoadFile(filepath.Join(testDir, fmt.Sprintf("%s.json", globalName)))
 				require.NoError(t, err)
 				assert.Len(t, globals.Packages, 0)
 				assert.Len(t, globals.Bundles, 0)
-				assert.Len(t, globals.Others, 2)
+				assert.Len(t, globals.others, 2)
 
 				all, err := LoadDir(testDir)
 				require.NoError(t, err)
 
 				assert.Len(t, all.Packages, 2)
 				assert.Len(t, all.Bundles, 5)
-				assert.Len(t, all.Others, 4)
+				assert.Len(t, all.others, 4)
 			}
 		})
 	}
@@ -275,40 +164,61 @@ func TestWriteFile(t *testing.T) {
 }
 
 func TestWriteLoadRoundtrip(t *testing.T) {
-	t.Run("File", func(t *testing.T) {
-		toFile := buildValidDeclarativeConfig(true)
+	type spec struct {
+		name  string
+		write func(DeclarativeConfig, string) error
+		load  func(string) (*DeclarativeConfig, error)
+	}
 
-		filename := filepath.Join(os.TempDir(), "decl-write-file-"+rand.String(5)+".json")
-		defer func() {
-			require.NoError(t, os.RemoveAll(filename))
-		}()
-		require.NoError(t, WriteFile(toFile, filename))
+	specs := []spec{
+		{
+			name:  "File",
+			write: WriteFile,
+			load:  LoadFile,
+		},
+		{
+			name:  "Dir",
+			write: WriteDir,
+			load:  LoadDir,
+		},
+		{
+			name:  "Tar",
+			write: WriteTar,
+			load:  LoadTar,
+		},
+	}
+	for _, s := range specs {
+		t.Run(s.name, func(t *testing.T) {
+			to := buildValidDeclarativeConfig(true)
 
-		fromFile, err := LoadFile(filename)
-		require.NoError(t, err)
+			filename := filepath.Join(os.TempDir(), "declcfg-"+rand.String(5))
+			defer func() {
+				require.NoError(t, os.RemoveAll(filename))
+			}()
+			require.NoError(t, s.write(to, filename))
 
-		removeJSONWhitespace(&toFile)
-		removeJSONWhitespace(fromFile)
+			from, err := s.load(filename)
+			require.NoError(t, err)
 
-		assert.Equal(t, toFile, *fromFile)
-	})
+			equalsDeclarativeConfig(t, to, *from)
+		})
+	}
+}
 
-	t.Run("Dir", func(t *testing.T) {
-		toDir := buildValidDeclarativeConfig(true)
-		dirname := filepath.Join(os.TempDir(), "decl-write-dir-"+rand.String(5))
-		defer func() {
-			require.NoError(t, os.RemoveAll(dirname))
-		}()
-		require.NoError(t, WriteDir(toDir, dirname))
+func equalsDeclarativeConfig(t *testing.T, expected, actual DeclarativeConfig) {
+	removeJSONWhitespace(&expected)
+	removeJSONWhitespace(&actual)
 
-		fromDir, err := LoadDir(dirname)
-		require.NoError(t, err)
+	assert.ElementsMatch(t, expected.Packages, actual.Packages)
+	assert.ElementsMatch(t, expected.Bundles, actual.Bundles)
+	assert.ElementsMatch(t, expected.others, actual.others)
 
-		removeJSONWhitespace(&toDir)
-		removeJSONWhitespace(fromDir)
-
-		assert.Equal(t, toDir, *fromDir)
-	})
+	// In case new fields are added to the DeclarativeConfig struct in the future,
+	// test that the rest is Equal.
+	expected.Packages, actual.Packages = nil, nil
+	expected.Bundles, actual.Bundles = nil, nil
+	expected.others, actual.others = nil, nil
+	assert.Equal(t, expected, actual)
 }
 
 func removeJSONWhitespace(cfg *DeclarativeConfig) {
@@ -318,9 +228,9 @@ func removeJSONWhitespace(cfg *DeclarativeConfig) {
 			cfg.Bundles[ib].Properties[ip].Value = []byte(replacer.Replace(string(cfg.Bundles[ib].Properties[ip].Value)))
 		}
 	}
-	for io := range cfg.Others {
-		for _, v := range cfg.Others[io].data {
-			cfg.Others[io].data = []byte(replacer.Replace(string(v)))
+	for io := range cfg.others {
+		for _, v := range cfg.others[io].data {
+			cfg.others[io].data = []byte(replacer.Replace(string(v)))
 		}
 	}
 }

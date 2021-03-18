@@ -5,15 +5,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
 	"strings"
 
-	"github.com/ghodss/yaml"
-	"github.com/operator-framework/api/pkg/operators"
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/operator-framework/operator-registry/pkg/model"
@@ -38,41 +32,20 @@ func ToModel(ctx context.Context, q *SQLQuerier) (model.Model, error) {
 	return pkgs, nil
 }
 
-func WriteBundleObjects(ctx context.Context, dir string, source *SQLQuerier) error {
+func GetBundleObjects(ctx context.Context, source *SQLQuerier) (map[string]map[string][]string, error) {
 	bundles, err := source.ListBundles(ctx)
 	if err != nil {
-		return fmt.Errorf("could not list bundles from db: %v", err)
+		return nil, fmt.Errorf("could not list bundles from db: %v", err)
 	}
+	objs := map[string]map[string][]string{}
 	for _, b := range bundles {
-		if len(b.CsvJson) == 0 && len(b.Object) == 0 {
-			continue
+		_, ok := objs[b.PackageName]
+		if !ok {
+			objs[b.PackageName] = map[string][]string{}
 		}
-		bundleDir := filepath.Join(dir, b.PackageName, b.CsvName)
-		if err := os.MkdirAll(bundleDir, 0777); err != nil {
-			return fmt.Errorf("failed to create bundle directory %q: %v", bundleDir, err)
-		}
-		if len(b.CsvJson) > 0 {
-			csvFile := filepath.Join(bundleDir, fmt.Sprintf("%s_csv.yaml", b.CsvName))
-			if err := ioutil.WriteFile(csvFile, []byte(b.CsvJson), 0666); err != nil {
-				return fmt.Errorf("failed to write csv file %q: %v", csvFile, err)
-			}
-		}
-		for i, obj := range b.Object {
-			u := unstructured.Unstructured{}
-			if err := yaml.Unmarshal([]byte(obj), &u); err != nil {
-				continue
-			}
-			if u.GetKind() == operators.ClusterServiceVersionKind {
-				continue
-			}
-
-			file := filepath.Join(bundleDir, fmt.Sprintf("%s_object_%d.yaml", b.CsvName, i))
-			if err := ioutil.WriteFile(file, []byte(obj), 0666); err != nil {
-				return fmt.Errorf("failed to write csv file %q: %v", file, err)
-			}
-		}
+		objs[b.PackageName][b.CsvName] = b.Object
 	}
-	return nil
+	return objs, nil
 }
 
 func initializeModelPackages(ctx context.Context, q *SQLQuerier) (model.Model, error) {

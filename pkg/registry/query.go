@@ -18,7 +18,7 @@ import (
 
 type Querier struct {
 	pkgs    model.Model
-	objects map[string]bundleObjects
+	objects map[string]map[string]bundleObjects
 }
 
 type bundleObjects struct {
@@ -31,16 +31,20 @@ var _ GRPCQuery = &Querier{}
 func NewQuerier(packages model.Model) *Querier {
 	return &Querier{
 		pkgs:    packages,
-		objects: map[string]bundleObjects{},
+		objects: map[string]map[string]bundleObjects{},
 	}
 }
 
-func (q *Querier) LoadBundleObjects(dir string) error {
-	for _, pkg := range q.pkgs {
-		pkgDir := filepath.Join(dir, pkg.Name)
-		for _, ch := range pkg.Channels {
+func (q *Querier) LoadBundleObjects(objectsDir string) error {
+	pkgObjs := map[string]map[string]bundleObjects{}
+	for _, p := range q.pkgs {
+		pkgDir := filepath.Join(objectsDir, p.Name)
+		if _, ok := pkgObjs[p.Name]; !ok {
+			pkgObjs[p.Name] = map[string]bundleObjects{}
+		}
+		for _, ch := range p.Channels {
 			for _, b := range ch.Bundles {
-				if _, ok := q.objects[b.Name]; ok {
+				if _, ok := pkgObjs[p.Name][b.Name]; ok {
 					continue
 				}
 				bundleDir := filepath.Join(pkgDir, b.Name)
@@ -48,11 +52,40 @@ func (q *Querier) LoadBundleObjects(dir string) error {
 				if err != nil {
 					return err
 				}
-				q.objects[b.Name] = *bObjs
+				pkgObjs[p.Name][b.Name] = *bObjs
 			}
 		}
 	}
+	q.objects = pkgObjs
 	return nil
+}
+
+func (q *Querier) SetBundleObjects(pkgs map[string]map[string][]string) {
+	for pkgName, bundles := range pkgs {
+		if _, ok := q.objects[pkgName]; !ok {
+			q.objects[pkgName] = map[string]bundleObjects{}
+		}
+		for bundleName, objs := range bundles {
+			csv := extractCSV(objs)
+			q.objects[pkgName][bundleName] = bundleObjects{
+				csv:     csv,
+				objects: objs,
+			}
+		}
+	}
+}
+
+func extractCSV(objs []string) string {
+	for _, obj := range objs {
+		u := unstructured.Unstructured{}
+		if err := yaml.Unmarshal([]byte(obj), &u); err != nil {
+			continue
+		}
+		if u.GetKind() == operators.ClusterServiceVersionKind {
+			return obj
+		}
+	}
+	return ""
 }
 
 func (q Querier) ListPackages(_ context.Context) ([]string, error) {
@@ -67,14 +100,17 @@ func (q Querier) ListBundles(_ context.Context) ([]*api.Bundle, error) {
 	var bundles []*api.Bundle
 
 	for _, pkg := range q.pkgs {
+		objects := q.objects[pkg.Name]
 		for _, ch := range pkg.Channels {
 			for _, b := range ch.Bundles {
 				apiBundle, err := api.ConvertModelBundleToAPIBundle(*b)
 				if err != nil {
 					return nil, fmt.Errorf("convert bundle %q: %v", b.Name, err)
 				}
-				apiBundle.CsvJson = q.objects[b.Name].csv
-				apiBundle.Object = q.objects[b.Name].objects
+				if objects != nil {
+					apiBundle.CsvJson = objects[b.Name].csv
+					apiBundle.Object = objects[b.Name].objects
+				}
 				bundles = append(bundles, apiBundle)
 			}
 		}
@@ -123,8 +159,10 @@ func (q Querier) GetBundle(_ context.Context, pkgName, channelName, csvName stri
 	if err != nil {
 		return nil, fmt.Errorf("convert bundle %q: %v", b.Name, err)
 	}
-	apiBundle.CsvJson = q.objects[b.Name].csv
-	apiBundle.Object = q.objects[b.Name].objects
+	if objects, ok := q.objects[pkg.Name]; ok {
+		apiBundle.CsvJson = objects[b.Name].csv
+		apiBundle.Object = objects[b.Name].objects
+	}
 
 	// unset Replaces and Skips (sqlite query does not populate these fields)
 	// TODO(joelanford): should these fields be populated?
@@ -150,8 +188,11 @@ func (q Querier) GetBundleForChannel(_ context.Context, pkgName string, channelN
 	if err != nil {
 		return nil, fmt.Errorf("convert bundle %q: %v", head.Name, err)
 	}
-	apiBundle.CsvJson = q.objects[head.Name].csv
-	apiBundle.Object = q.objects[head.Name].objects
+
+	if objects, ok := q.objects[pkg.Name]; ok {
+		apiBundle.CsvJson = objects[head.Name].csv
+		apiBundle.Object = objects[head.Name].objects
+	}
 
 	// unset Replaces and Skips (sqlite query does not populate these fields)
 	// TODO(joelanford): should these fields be populated?
@@ -186,14 +227,19 @@ func (q Querier) GetBundleThatReplaces(_ context.Context, name, pkgName, channel
 	if !ok {
 		return nil, fmt.Errorf("package %q, channel %q not found", pkgName, channelName)
 	}
+
+	objects := q.objects[pkg.Name]
 	for _, b := range ch.Bundles {
 		if bundleReplaces(*b, name) {
 			apiBundle, err := api.ConvertModelBundleToAPIBundle(*b)
 			if err != nil {
 				return nil, fmt.Errorf("convert bundle %q: %v", b.Name, err)
 			}
-			apiBundle.CsvJson = q.objects[b.Name].csv
-			apiBundle.Object = q.objects[b.Name].objects
+
+			if objects != nil {
+				apiBundle.CsvJson = objects[b.Name].csv
+				apiBundle.Object = objects[b.Name].objects
+			}
 
 			// unset Replaces and Skips (sqlite query does not populate these fields)
 			// TODO(joelanford): should these fields be populated?

@@ -4,10 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
-	"path/filepath"
 	"strconv"
 	"time"
 
@@ -95,8 +93,24 @@ func (s *serve) run(ctx context.Context) error {
 		storeErr error
 	)
 	switch dbMode {
-	case mode.ModeDeclarativeConfig:
-		store, storeErr = s.loadDeclarativeConfigStore(s.database, s.objectsDirectory)
+	case mode.ModeDeclCfgDir:
+		cfg, err := declcfg.LoadDir(s.database)
+		if err != nil {
+			return fmt.Errorf("load declarative config directory: %v", err)
+		}
+		store, storeErr = declcfgQuerier(*cfg, s.objectsDirectory)
+	case mode.ModeDeclCfgFile:
+		cfg, err := declcfg.LoadFile(s.database)
+		if err != nil {
+			return fmt.Errorf("load declarative config file: %v", err)
+		}
+		store, storeErr = declcfgQuerier(*cfg, s.objectsDirectory)
+	case mode.ModeDeclCfgTar:
+		cfg, err := declcfg.LoadTar(s.database)
+		if err != nil {
+			return fmt.Errorf("load declarative config tar: %v", err)
+		}
+		store, storeErr = declcfgQuerier(*cfg, s.objectsDirectory)
 	case mode.ModeSqlite:
 		// make a writable copy of the db for migrations
 		tmpdb, err := tmp.CopyTmpDB(s.database)
@@ -144,22 +158,8 @@ func (s *serve) run(ctx context.Context) error {
 	})
 }
 
-func (s serve) loadDeclarativeConfigStore(source string, objectsDir string) (registry.GRPCQuery, error) {
-	var (
-		cfg *declcfg.DeclarativeConfig
-		err error
-	)
-	if stat, sErr := os.Stat(source); sErr != nil {
-		return nil, sErr
-	} else if stat.IsDir() {
-		cfg, err = declcfg.LoadDir(source)
-	} else {
-		cfg, err = declcfg.LoadFile(source)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("could not load declarative configs: %v", err)
-	}
-	m, err := declcfg.ConvertToModel(*cfg)
+func declcfgQuerier(cfg declcfg.DeclarativeConfig, objectsDir string) (registry.GRPCQuery, error) {
+	m, err := declcfg.ConvertToModel(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("could not build index model from declarative config: %v", err)
 	}
@@ -198,18 +198,19 @@ func (s *serve) loadDBStore(ctx context.Context, source string) (registry.GRPCQu
 		return dbStore, nil
 	}
 
-	tmpDir, err := ioutil.TempDir("", "opm-registry-serve-")
+	objs, err := sqlite.GetBundleObjects(ctx, dbStore)
 	if err != nil {
-		return nil, fmt.Errorf("could not create temporary objects directory: %v", err)
+		return nil, err
 	}
-	defer os.RemoveAll(tmpDir)
 
-	tmpDeclCfg := filepath.Join(tmpDir, "declcfg.json")
-	tmpObjects := filepath.Join(tmpDir, "objects")
-	if err := migrateDBToDeclarativeConfig(ctx, tmpDeclCfg, tmpObjects, dbStore); err != nil {
-		return nil, fmt.Errorf("failed to migrate DB to declarative configs: %v", err)
+	m, err := sqlite.ToModel(ctx, dbStore)
+	if err != nil {
+		return nil, err
 	}
-	return s.loadDeclarativeConfigStore(tmpDeclCfg, tmpObjects)
+	q := registry.NewQuerier(m)
+	q.SetBundleObjects(objs)
+
+	return q, nil
 }
 
 func (s serve) migrate(ctx context.Context, db *sql.DB) error {
@@ -222,18 +223,4 @@ func (s serve) migrate(ctx context.Context, db *sql.DB) error {
 	}
 
 	return migrator.Migrate(ctx)
-}
-
-func migrateDBToDeclarativeConfig(ctx context.Context, declcfgPath string, objectsDir string, source *sqlite.SQLQuerier) error {
-	m, err := sqlite.ToModel(ctx, source)
-	if err != nil {
-		return err
-	}
-
-	if err := sqlite.WriteBundleObjects(ctx, objectsDir, source); err != nil {
-		return err
-	}
-
-	cfg := declcfg.ConvertFromModel(m)
-	return declcfg.WriteFile(cfg, declcfgPath)
 }
