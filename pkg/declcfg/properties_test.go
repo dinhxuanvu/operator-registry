@@ -5,54 +5,62 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/operator-framework/operator-registry/pkg/property"
 )
 
 func TestParseProperties(t *testing.T) {
 	type spec struct {
 		name          string
-		properties    []property
+		properties    []property.Property
 		expectErrType error
-		expectProps   *properties
+		expectProps   *property.Properties
 	}
 
 	specs := []spec{
 		{
 			name: "Error/InvalidChannel",
-			properties: []property{
-				{Type: propertyTypeChannel, Value: json.RawMessage(`""`)},
+			properties: []property.Property{
+				{Type: property.TypeChannel, Value: json.RawMessage(`""`)},
 			},
-			expectErrType: propertyParseError{},
+			expectErrType: property.ParseError{},
 		},
 		{
 			name: "Error/InvalidSkips",
-			properties: []property{
-				{Type: propertyTypeSkips, Value: json.RawMessage(`{}`)},
+			properties: []property.Property{
+				{Type: property.TypeSkips, Value: json.RawMessage(`{}`)},
 			},
-			expectErrType: propertyParseError{},
+			expectErrType: property.ParseError{},
 		},
 		{
 			name: "Error/DuplicateChannels",
-			properties: []property{
-				channelProperty("alpha", "foo.v0.0.3"),
-				channelProperty("beta", "foo.v0.0.3"),
-				channelProperty("alpha", "foo.v0.0.4"),
+			properties: []property.Property{
+				property.MustBuildChannel("alpha", "foo.v0.0.3"),
+				property.MustBuildChannel("beta", "foo.v0.0.3"),
+				property.MustBuildChannel("alpha", "foo.v0.0.4"),
 			},
 			expectErrType: propertyDuplicateError{},
 		},
 		{
 			name: "Success/Valid",
-			properties: []property{
-				channelProperty("alpha", "foo.v0.0.3"),
-				channelProperty("beta", "foo.v0.0.4"),
-				skipsProperty("foo.v0.0.1"),
-				skipsProperty("foo.v0.0.2"),
+			properties: []property.Property{
+				property.MustBuildChannel("alpha", "foo.v0.0.3"),
+				property.MustBuildChannel("beta", "foo.v0.0.4"),
+				property.MustBuildSkips("foo.v0.0.1"),
+				property.MustBuildSkips("foo.v0.0.2"),
 			},
-			expectProps: &properties{
-				channels: []channel{
+			expectProps: &property.Properties{
+				Channels: []property.Channel{
 					{Name: "alpha", Replaces: "foo.v0.0.3"},
 					{Name: "beta", Replaces: "foo.v0.0.4"},
 				},
-				skips: []string{"foo.v0.0.1", "foo.v0.0.2"},
+				Skips: []property.Skips{"foo.v0.0.1", "foo.v0.0.2"},
+				All: []property.Property{
+					property.MustBuildChannel("alpha", "foo.v0.0.3"),
+					property.MustBuildChannel("beta", "foo.v0.0.4"),
+					property.MustBuildSkips("foo.v0.0.1"),
+					property.MustBuildSkips("foo.v0.0.2"),
+				},
 			},
 		},
 	}

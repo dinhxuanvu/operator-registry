@@ -1,74 +1,32 @@
 package declcfg
 
 import (
-	"encoding/json"
 	"fmt"
+
+	"github.com/operator-framework/operator-registry/pkg/property"
 )
 
-type property struct {
-	Type  string          `json:"type"`
-	Value json.RawMessage `json:"value"`
-}
-
-const (
-	// Minimal property set required to build model.
-	propertyTypeChannel = "olm.channel"
-	propertyTypeSkips   = "olm.skips"
-)
-
-type channel struct {
-	Name     string `json:"name"`
-	Replaces string `json:"replaces,omitempty"`
-}
-
-type properties struct {
-	channels []channel
-	skips    []string
-}
-
-func parseProperties(props []property) (*properties, error) {
-	var ps properties
+func parseProperties(props []property.Property) (*property.Properties, error) {
+	out, err := property.Parse(props)
+	if err != nil {
+		return nil, err
+	}
 
 	channels := map[string]struct{}{}
-	for i, prop := range props {
-		switch prop.Type {
-		case propertyTypeChannel:
-			var p channel
-			if err := json.Unmarshal(prop.Value, &p); err != nil {
-				return nil, propertyParseError{i: i, t: prop.Type, err: err}
-			}
-			if _, ok := channels[p.Name]; ok {
-				return nil, propertyDuplicateError{i: i, t: prop.Type, key: p.Name}
-			}
-			channels[p.Name] = struct{}{}
-			ps.channels = append(ps.channels, p)
-		case propertyTypeSkips:
-			var p string
-			if err := json.Unmarshal(prop.Value, &p); err != nil {
-				return nil, propertyParseError{i: i, t: prop.Type, err: err}
-			}
-			ps.skips = append(ps.skips, p)
+	for _, ch := range out.Channels {
+		if _, ok := channels[ch.Name]; ok {
+			return nil, propertyDuplicateError{typ: property.TypeChannel, key: ch.Name}
 		}
+		channels[ch.Name] = struct{}{}
 	}
-	return &ps, nil
-}
-
-type propertyParseError struct {
-	i   int
-	t   string
-	err error
-}
-
-func (e propertyParseError) Error() string {
-	return fmt.Sprintf("properties[%d].value parse error for %q: %v", e.i, e.t, e.err)
+	return out, nil
 }
 
 type propertyDuplicateError struct {
-	i   int
-	t   string
+	typ string
 	key string
 }
 
 func (e propertyDuplicateError) Error() string {
-	return fmt.Sprintf("properties[%d]: duplicate property of type %q found with key %q", e.i, e.t, e.key)
+	return fmt.Sprintf("duplicate property of type %q found with key %q", e.typ, e.key)
 }

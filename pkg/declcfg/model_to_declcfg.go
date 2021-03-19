@@ -4,6 +4,7 @@ import (
 	"sort"
 
 	"github.com/operator-framework/operator-registry/pkg/model"
+	"github.com/operator-framework/operator-registry/pkg/property"
 )
 
 func ConvertFromModel(mpkgs model.Model) DeclarativeConfig {
@@ -54,13 +55,13 @@ func traverseModelChannels(mpkg model.Package) []bundle {
 				}
 				bundles[b.Name] = b
 			}
-			b.Properties = append(b.Properties, modelPropertiesToProperties(chb.Properties)...)
+			b.Properties = append(b.Properties, chb.Properties...)
 		}
 	}
 
 	var out []bundle
 	for _, b := range bundles {
-		b.Properties = deduplicateProperties(b.Properties)
+		b.Properties = property.Deduplicate(b.Properties)
 		out = append(out, *b)
 	}
 	return out
@@ -73,36 +74,6 @@ func modelRelatedImagesToRelatedImages(relatedImages []model.RelatedImage) []rel
 			Name:  ri.Name,
 			Image: ri.Image,
 		})
-	}
-	return out
-}
-
-func modelPropertiesToProperties(props []model.Property) []property {
-	var out []property
-	for _, p := range props {
-		out = append(out, property{
-			Type:  p.Type,
-			Value: p.Value,
-		})
-	}
-	return out
-}
-
-func deduplicateProperties(in []property) []property {
-	type key struct {
-		typ   string
-		value string
-	}
-
-	props := map[key]property{}
-	var out []property
-	for _, p := range in {
-		k := key{p.Type, string(p.Value)}
-		if _, ok := props[k]; ok {
-			continue
-		}
-		props[k] = p
-		out = append(out, p)
 	}
 	return out
 }

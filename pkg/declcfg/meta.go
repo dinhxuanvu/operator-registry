@@ -2,6 +2,8 @@ package declcfg
 
 import (
 	"encoding/json"
+
+	"github.com/operator-framework/operator-registry/pkg/property"
 )
 
 type meta struct {
@@ -25,9 +27,9 @@ func (m meta) MarshalJSON() ([]byte, error) {
 
 func (m *meta) UnmarshalJSON(d []byte) error {
 	type tmp struct {
-		Schema     string     `json:"schema"`
-		Package    string     `json:"package,omitempty"`
-		Properties []property `json:"properties,omitempty"`
+		Schema     string              `json:"schema"`
+		Package    string              `json:"package,omitempty"`
+		Properties []property.Property `json:"properties,omitempty"`
 	}
 	var t tmp
 	if err := json.Unmarshal(d, &t); err != nil {

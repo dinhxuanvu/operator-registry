@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/operator-framework/operator-registry/pkg/model"
+	"github.com/operator-framework/operator-registry/pkg/property"
 )
 
 func buildValidDeclarativeConfig(includeUnrecognized bool) DeclarativeConfig {
@@ -62,62 +63,14 @@ type bundleOpt func(*bundle)
 
 func withChannel(name, replaces string) func(*bundle) {
 	return func(b *bundle) {
-		b.Properties = append(b.Properties, channelProperty(name, replaces))
+		b.Properties = append(b.Properties, property.MustBuildChannel(name, replaces))
 	}
-}
-
-func channelProperty(name, replaces string) property {
-	return property{
-		Type:  propertyTypeChannel,
-		Value: channelPropertyValue(name, replaces),
-	}
-}
-
-func channelPropertyValue(name, replaces string) json.RawMessage {
-	if replaces == "" {
-		return json.RawMessage(fmt.Sprintf(`{"name":%q}`, name))
-	}
-	return json.RawMessage(fmt.Sprintf(`{"name":%q,"replaces":%q}`, name, replaces))
 }
 
 func withSkips(name string) func(*bundle) {
 	return func(b *bundle) {
-		b.Properties = append(b.Properties, skipsProperty(name))
+		b.Properties = append(b.Properties, property.MustBuildSkips(name))
 	}
-}
-
-func skipsProperty(skips string) property {
-	return property{
-		Type:  propertyTypeSkips,
-		Value: skipsPropertyValue(skips),
-	}
-}
-
-func skipsPropertyValue(skips string) json.RawMessage {
-	return json.RawMessage(fmt.Sprintf("%q", skips))
-}
-
-const (
-	propertyTypePackage         = "olm.package"
-	propertyTypeProvidedPackage = "olm.package.provided"
-)
-
-func packageProperty(packageName, version string) property {
-	return property{
-		Type:  propertyTypePackage,
-		Value: providedPackagePropertyValue(packageName, version),
-	}
-}
-
-func providedPackageProperty(packageName, version string) property {
-	return property{
-		Type:  propertyTypeProvidedPackage,
-		Value: providedPackagePropertyValue(packageName, version),
-	}
-}
-
-func providedPackagePropertyValue(packageName, version string) json.RawMessage {
-	return json.RawMessage(fmt.Sprintf(`{"packageName":%q, "version":%q}`, packageName, version))
 }
 
 func newTestBundle(packageName, version string, opts ...bundleOpt) bundle {
@@ -126,9 +79,9 @@ func newTestBundle(packageName, version string, opts ...bundleOpt) bundle {
 		Name:    testBundleName(packageName, version),
 		Package: packageName,
 		Image:   testBundleImage(packageName, version),
-		Properties: []property{
-			packageProperty(packageName, version),
-			providedPackageProperty(packageName, version),
+		Properties: []property.Property{
+			property.MustBuildPackage(packageName, version),
+			property.MustBuildPackageProvided(packageName, version),
 		},
 		RelatedImages: []relatedImage{
 			{
@@ -143,8 +96,10 @@ func newTestBundle(packageName, version string, opts ...bundleOpt) bundle {
 	return b
 }
 
-const svgSmallCircle = `<svg viewBox="0 0 100 100"><circle cx="25" cy="25" r="25"/></svg>`
-const svgBigCircle = `<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="50"/></svg>`
+const (
+	svgSmallCircle = `<svg viewBox="0 0 100 100"><circle cx="25" cy="25" r="25"/></svg>`
+	svgBigCircle   = `<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="50"/></svg>`
+)
 
 func newTestPackage(packageName, defaultChannel, svgData string) pkg {
 	p := pkg{
@@ -186,40 +141,29 @@ func buildAnakinPkgModel() *model.Package {
 	}
 	pkg.DefaultChannel = pkg.Channels["dark"]
 
-	versions := map[string][]channel{
-		"0.0.1": {{"light", ""}, {"dark", ""}},
+	versions := map[string][]property.Channel{
+		"0.0.1": {{Name: "light"}, {Name: "dark"}},
 		"0.1.0": {
-			{"light", testBundleName(pkgName, "0.0.1")},
-			{"dark", testBundleName(pkgName, "0.0.1")},
+			{Name: "light", Replaces: testBundleName(pkgName, "0.0.1")},
+			{Name: "dark", Replaces: testBundleName(pkgName, "0.0.1")},
 		},
-		"0.1.1": {{"dark", testBundleName(pkgName, "0.0.1")}},
+		"0.1.1": {{Name: "dark", Replaces: testBundleName(pkgName, "0.0.1")}},
 	}
 	for version, channels := range versions {
-		props := []model.Property{
-			{
-				Type:  propertyTypePackage,
-				Value: providedPackagePropertyValue(pkgName, version),
-			},
-			{
-				Type:  propertyTypeProvidedPackage,
-				Value: providedPackagePropertyValue(pkgName, version),
-			},
+		props := []property.Property{
+			property.MustBuildPackage(pkgName, version),
+			property.MustBuildPackageProvided(pkgName, version),
 		}
 		for _, channel := range channels {
-			props = append(props, model.Property{
-				Type:  propertyTypeChannel,
-				Value: channelPropertyValue(channel.Name, channel.Replaces),
-			})
+			props = append(props, property.MustBuild(&channel))
 			ch := pkg.Channels[channel.Name]
 			bName := testBundleName(pkgName, version)
 			bImage := testBundleImage(pkgName, version)
 			skips := []string{}
 			if version == "0.1.1" {
-				skips = append(skips, testBundleName(pkgName, "0.1.0"))
-				props = append(props, model.Property{
-					Type:  propertyTypeSkips,
-					Value: skipsPropertyValue(testBundleName(pkgName, "0.1.0")),
-				})
+				skip := testBundleName(pkgName, "0.1.0")
+				skips = append(skips, skip)
+				props = append(props, property.MustBuildSkips(skip))
 			}
 			bundle := &model.Bundle{
 				Package:    pkg,
@@ -259,28 +203,17 @@ func buildBobaFettPkgModel() *model.Package {
 	pkg.Channels[ch.Name] = ch
 	pkg.DefaultChannel = ch
 
-	versions := map[string][]channel{
-		"1.0.0": {{"mando", ""}},
-		"2.0.0": {{"mando", testBundleName(pkgName, "1.0.0")}},
+	versions := map[string][]property.Channel{
+		"1.0.0": {{Name: "mando"}},
+		"2.0.0": {{Name: "mando", Replaces: testBundleName(pkgName, "1.0.0")}},
 	}
 	for version, channels := range versions {
-		props := []model.Property{
-			{
-				Type:  propertyTypePackage,
-				Value: providedPackagePropertyValue(pkgName, version),
-			},
-			{
-				Type:  propertyTypeProvidedPackage,
-				Value: providedPackagePropertyValue(pkgName, version),
-			},
+		props := []property.Property{
+			property.MustBuildPackage(pkgName, version),
+			property.MustBuildPackageProvided(pkgName, version),
 		}
 		for _, channel := range channels {
-			props = append(props, model.Property{
-				Type:  propertyTypeChannel,
-				Value: channelPropertyValue(channel.Name, channel.Replaces),
-			})
-		}
-		for _, channel := range channels {
+			props = append(props, property.MustBuild(&channel))
 			ch := pkg.Channels[channel.Name]
 			bName := testBundleName(pkgName, version)
 			bImage := testBundleImage(pkgName, version)
@@ -305,9 +238,11 @@ func buildBobaFettPkgModel() *model.Package {
 func testPackageDescription(pkg string) string {
 	return fmt.Sprintf("%s operator", pkg)
 }
+
 func testBundleName(pkg, version string) string {
 	return fmt.Sprintf("%s.v%s", pkg, version)
 }
+
 func testBundleImage(pkg, version string) string {
 	return fmt.Sprintf("%s-bundle:v%s", pkg, version)
 }

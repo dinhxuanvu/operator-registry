@@ -125,7 +125,7 @@ func writeToFS(cfg DeclarativeConfig, w fsWriter, rootDir string) error {
 	}
 
 	if err := w.MkdirAll(rootDir, 0755); err != nil {
-		return err
+		return fmt.Errorf("mkdir %q: %v", rootDir, err)
 	}
 
 	for _, p := range cfg.Packages {
@@ -135,12 +135,7 @@ func writeToFS(cfg DeclarativeConfig, w fsWriter, rootDir string) error {
 			others:   othersByPackage[p.Name],
 		}
 		filename := filepath.Join(rootDir, fmt.Sprintf("%s.json", p.Name))
-
-		buf := &bytes.Buffer{}
-		if err := writeJSON(fcfg, buf); err != nil {
-			return fmt.Errorf("write to buffer for %q: %v", filename, err)
-		}
-		if err := w.WriteFile(filename, buf.Bytes(), 0644); err != nil {
+		if err := writeFile(fcfg, w, filename); err != nil {
 			return err
 		}
 	}
@@ -150,13 +145,20 @@ func writeToFS(cfg DeclarativeConfig, w fsWriter, rootDir string) error {
 			others: globals,
 		}
 		filename := filepath.Join(rootDir, fmt.Sprintf("%s.json", globalName))
-		buf := &bytes.Buffer{}
-		if err := writeJSON(gcfg, buf); err != nil {
-			return fmt.Errorf("write to buffer for %q: %v", filename, err)
-		}
-		if err := w.WriteFile(filename, buf.Bytes(), 0644); err != nil {
+		if err := writeFile(gcfg, w, filename); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func writeFile(cfg DeclarativeConfig, w fsWriter, filename string) error {
+	buf := &bytes.Buffer{}
+	if err := writeJSON(cfg, buf); err != nil {
+		return fmt.Errorf("write to buffer for %q: %v", filename, err)
+	}
+	if err := w.WriteFile(filename, buf.Bytes(), 0644); err != nil {
+		return fmt.Errorf("write file %q: %v", filename, err)
 	}
 	return nil
 }

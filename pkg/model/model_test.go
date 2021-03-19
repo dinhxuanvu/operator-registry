@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/operator-framework/operator-registry/pkg/property"
 )
 
 type validator interface {
@@ -40,14 +42,14 @@ func TestNormalize(t *testing.T) {
 	}
 	t.Run("Success/IgnoreInvalid", func(t *testing.T) {
 		invalidJSON := json.RawMessage(`}`)
-		b.Properties = []Property{{Value: invalidJSON}}
+		b.Properties = []property.Property{{Value: invalidJSON}}
 		pkgs.Normalize()
 		assert.Equal(t, invalidJSON, b.Properties[0].Value)
 	})
 
 	t.Run("Success/Unchanged", func(t *testing.T) {
 		unchanged := json.RawMessage(`{}`)
-		b.Properties = []Property{{Value: unchanged}}
+		b.Properties = []property.Property{{Value: unchanged}}
 		pkgs.Normalize()
 		assert.Equal(t, unchanged, b.Properties[0].Value)
 	})
@@ -55,7 +57,7 @@ func TestNormalize(t *testing.T) {
 	t.Run("Success/RemoveSpacesAndHTMLEscapes", func(t *testing.T) {
 		withWhitespace := json.RawMessage("{\n\"test\":\"\u003C\"   }")
 		expected := json.RawMessage(`{"test":"<"}`)
-		b.Properties = []Property{{Value: withWhitespace}}
+		b.Properties = []property.Property{{Value: withWhitespace}}
 		pkgs.Normalize()
 		assert.Equal(t, expected, b.Properties[0].Value)
 	})
@@ -120,8 +122,8 @@ func TestValidators(t *testing.T) {
 		assertion require.ErrorAssertionFunc
 	}
 
-	pkg, ch, _ := makePackageChannelBundle()
-	pkgIncorrectDefaultChannel, _, _ := makePackageChannelBundle()
+	pkg, ch := makePackageChannelBundle()
+	pkgIncorrectDefaultChannel, _ := makePackageChannelBundle()
 	pkgIncorrectDefaultChannel.DefaultChannel = &Channel{Name: "not-found"}
 
 	var nilIcon *Icon = nil
@@ -363,14 +365,14 @@ func TestValidators(t *testing.T) {
 				Image:    "",
 				Replaces: "anakin.v0.0.1",
 				Skips:    []string{"anakin.v0.0.2"},
-				Properties: []Property{
-					packageProp("anakin", "0.1.0"),
-					packageProvidedProp("anakin", "0.1.0"),
-					gvkProp("skywalker.me", "v1alpha1", "PodRacer"),
-					gvkProvidedProp("skywalker.me", "v1alpha1", "PodRacer"),
-					skipsProp("anakin.v0.0.2"),
-					channelProp("light", "anakin.v0.0.1"),
-					channelProp("dark", "anakin.v0.0.1"),
+				Properties: []property.Property{
+					property.MustBuildPackage("anakin", "0.1.0"),
+					property.MustBuildPackageProvided("anakin", "0.1.0"),
+					property.MustBuildGVK("skywalker.me", "v1alpha1", "PodRacer", ""),
+					property.MustBuildGVKProvided("skywalker.me", "v1alpha1", "PodRacer", ""),
+					property.MustBuildSkips("anakin.v0.0.2"),
+					property.MustBuildChannel("light", "anakin.v0.0.1"),
+					property.MustBuildChannel("dark", "anakin.v0.0.1"),
 				},
 			},
 			assertion: require.NoError,
@@ -421,7 +423,7 @@ func TestValidators(t *testing.T) {
 				Channel:    ch,
 				Name:       "anakin.v0.1.0",
 				Replaces:   "anakin.v0.0.1",
-				Properties: []Property{{Value: json.RawMessage("")}},
+				Properties: []property.Property{{Value: json.RawMessage("")}},
 			},
 			assertion: require.Error,
 		},
@@ -432,7 +434,7 @@ func TestValidators(t *testing.T) {
 				Channel:    ch,
 				Name:       "anakin.v0.1.0",
 				Replaces:   "anakin.v0.0.1",
-				Properties: []Property{{Type: "custom", Value: json.RawMessage("{}")}},
+				Properties: []property.Property{{Type: "custom", Value: json.RawMessage("{}")}},
 				Skips:      []string{""},
 			},
 			assertion: require.Error,
@@ -444,7 +446,7 @@ func TestValidators(t *testing.T) {
 				Channel:    ch,
 				Name:       "anakin.v0.1.0",
 				Replaces:   "anakin.v0.0.1",
-				Properties: []Property{{Type: "custom", Value: json.RawMessage("{}")}},
+				Properties: []property.Property{{Type: "custom", Value: json.RawMessage("{}")}},
 				Skips:      []string{"foobar"},
 			},
 			assertion: require.Error,
@@ -458,10 +460,10 @@ func TestValidators(t *testing.T) {
 				Image:    "",
 				Replaces: "anakin.v0.0.1",
 				Skips:    []string{"anakin.v0.0.2"},
-				Properties: []Property{
-					skipsProp("anakin.v0.0.2"),
-					channelProp("light", "anakin.v0.0.1"),
-					channelProp("dark", "anakin.v0.0.1"),
+				Properties: []property.Property{
+					property.MustBuildSkips("anakin.v0.0.2"),
+					property.MustBuildChannel("light", "anakin.v0.0.1"),
+					property.MustBuildChannel("dark", "anakin.v0.0.1"),
 				},
 			},
 			assertion: require.Error,
@@ -475,11 +477,11 @@ func TestValidators(t *testing.T) {
 				Image:    "",
 				Replaces: "anakin.v0.0.1",
 				Skips:    []string{"anakin.v0.0.2"},
-				Properties: []Property{
-					packageProvidedProp("anakin", "0.1.0"),
-					skipsProp("anakin.v0.0.2"),
-					channelProp("light", "anakin.v0.0.1"),
-					channelProp("dark", "anakin.v0.0.1"),
+				Properties: []property.Property{
+					property.MustBuildPackageProvided("anakin", "0.1.0"),
+					property.MustBuildSkips("anakin.v0.0.2"),
+					property.MustBuildChannel("light", "anakin.v0.0.1"),
+					property.MustBuildChannel("dark", "anakin.v0.0.1"),
 				},
 			},
 			assertion: require.Error,
@@ -493,13 +495,13 @@ func TestValidators(t *testing.T) {
 				Image:    "",
 				Replaces: "anakin.v0.0.1",
 				Skips:    []string{"anakin.v0.0.2"},
-				Properties: []Property{
-					packageProp("anakin", "0.1.0"),
-					packageProvidedProp("anakin", "0.1.0"),
-					gvkProp("skywalker.me", "v1alpha1", "PodRacer"),
-					skipsProp("anakin.v0.0.2"),
-					channelProp("light", "anakin.v0.0.1"),
-					channelProp("dark", "anakin.v0.0.1"),
+				Properties: []property.Property{
+					property.MustBuildPackage("anakin", "0.1.0"),
+					property.MustBuildPackageProvided("anakin", "0.1.0"),
+					property.MustBuildGVK("skywalker.me", "v1alpha1", "PodRacer", ""),
+					property.MustBuildSkips("anakin.v0.0.2"),
+					property.MustBuildChannel("light", "anakin.v0.0.1"),
+					property.MustBuildChannel("dark", "anakin.v0.0.1"),
 				},
 			},
 			assertion: require.Error,
@@ -513,53 +515,14 @@ func TestValidators(t *testing.T) {
 				Image:    "",
 				Replaces: "anakin.v0.0.1",
 				Skips:    []string{"anakin.v0.0.2"},
-				Properties: []Property{
-					packageProp("anakin", "0.1.0"),
-					packageProvidedProp("anakin", "0.1.0"),
-					gvkProvidedProp("skywalker.me", "v1alpha1", "PodRacer"),
-					skipsProp("anakin.v0.0.2"),
-					channelProp("light", "anakin.v0.0.1"),
-					channelProp("dark", "anakin.v0.0.1"),
+				Properties: []property.Property{
+					property.MustBuildPackage("anakin", "0.1.0"),
+					property.MustBuildPackageProvided("anakin", "0.1.0"),
+					property.MustBuildGVKProvided("skywalker.me", "v1alpha1", "PodRacer", ""),
+					property.MustBuildSkips("anakin.v0.0.2"),
+					property.MustBuildChannel("light", "anakin.v0.0.1"),
+					property.MustBuildChannel("dark", "anakin.v0.0.1"),
 				},
-			},
-			assertion: require.Error,
-		},
-		{
-			name: "Property/Success/Valid",
-			v: Property{
-				Type:  "custom.type",
-				Value: json.RawMessage("{}"),
-			},
-			assertion: require.NoError,
-		},
-		{
-			name: "Property/Error/NoType",
-			v: Property{
-				Value: json.RawMessage(""),
-			},
-			assertion: require.Error,
-		},
-		{
-			name: "Property/Error/NoValue",
-			v: Property{
-				Type:  "custom.type",
-				Value: nil,
-			},
-			assertion: require.Error,
-		},
-		{
-			name: "Property/Error/EmptyValue",
-			v: Property{
-				Type:  "custom.type",
-				Value: json.RawMessage{},
-			},
-			assertion: require.Error,
-		},
-		{
-			name: "Property/Error/ValueNotJSON",
-			v: Property{
-				Type:  "custom.type",
-				Value: json.RawMessage("{"),
 			},
 			assertion: require.Error,
 		},
@@ -595,26 +558,26 @@ func TestValidators(t *testing.T) {
 	}
 }
 
-func makePackageChannelBundle() (*Package, *Channel, *Bundle) {
+func makePackageChannelBundle() (*Package, *Channel) {
 	bundle1 := &Bundle{
 		Name:  "anakin.v0.0.1",
 		Image: "anakin-operator:v0.0.1",
-		Properties: []Property{
-			packageProp("anakin", "0.0.1"),
-			packageProvidedProp("anakin", "0.0.1"),
-			gvkProp("skywalker.me", "v1alpha1", "PodRacer"),
-			gvkProvidedProp("skywalker.me", "v1alpha1", "PodRacer"),
+		Properties: []property.Property{
+			property.MustBuildPackage("anakin", "0.0.1"),
+			property.MustBuildPackageProvided("anakin", "0.0.1"),
+			property.MustBuildGVK("skywalker.me", "v1alpha1", "PodRacer", ""),
+			property.MustBuildGVKProvided("skywalker.me", "v1alpha1", "PodRacer", ""),
 		},
 	}
 	bundle2 := &Bundle{
 		Name:     "anakin.v0.0.2",
 		Image:    "anakin-operator:v0.0.2",
 		Replaces: "anakin.v0.0.1",
-		Properties: []Property{
-			packageProp("anakin", "0.0.2"),
-			packageProvidedProp("anakin", "0.0.2"),
-			gvkProp("skywalker.me", "v1alpha1", "PodRacer"),
-			gvkProvidedProp("skywalker.me", "v1alpha1", "PodRacer"),
+		Properties: []property.Property{
+			property.MustBuildPackage("anakin", "0.0.2"),
+			property.MustBuildPackageProvided("anakin", "0.0.2"),
+			property.MustBuildGVK("skywalker.me", "v1alpha1", "PodRacer", ""),
+			property.MustBuildGVKProvided("skywalker.me", "v1alpha1", "PodRacer", ""),
 		},
 	}
 	ch := &Channel{
@@ -635,57 +598,5 @@ func makePackageChannelBundle() (*Package, *Channel, *Bundle) {
 	bundle1.Channel, bundle2.Channel = ch, ch
 	bundle1.Package, bundle2.Package, ch.Package = pkg, pkg, pkg
 
-	return pkg, ch, bundle2
-}
-
-func makeProperty(typ string, value interface{}) Property {
-	v, err := json.Marshal(value)
-	if err != nil {
-		panic(err)
-	}
-	return Property{
-		Type:  typ,
-		Value: v,
-	}
-}
-
-func packageProp(pkg, version string) Property {
-	return makeProperty(propertyTypePackage, map[string]string{
-		"packageName": pkg,
-		"version":     version,
-	})
-}
-
-func packageProvidedProp(pkg, version string) Property {
-	return makeProperty(propertyTypePackageProvided, map[string]string{
-		"packageName": pkg,
-		"version":     version,
-	})
-}
-
-func gvkProp(group, version, kind string) Property {
-	return makeProperty("olm.gvk", map[string]string{
-		"group":   group,
-		"kind":    kind,
-		"version": version,
-	})
-}
-
-func gvkProvidedProp(group, version, kind string) Property {
-	return makeProperty("olm.gvk.provided", map[string]string{
-		"group":   group,
-		"kind":    kind,
-		"version": version,
-	})
-}
-
-func channelProp(name, replaces string) Property {
-	return makeProperty("olm.channel", map[string]string{
-		"name":     name,
-		"replaces": replaces,
-	})
-}
-
-func skipsProp(skips string) Property {
-	return makeProperty("olm.skips", skips)
+	return pkg, ch
 }

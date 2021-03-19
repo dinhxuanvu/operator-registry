@@ -1,11 +1,11 @@
 package api
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 
 	"github.com/operator-framework/operator-registry/pkg/model"
+	"github.com/operator-framework/operator-registry/pkg/property"
 )
 
 func ConvertAPIBundleToModelBundle(b *Bundle) (*model.Bundle, error) {
@@ -22,69 +22,44 @@ func ConvertAPIBundleToModelBundle(b *Bundle) (*model.Bundle, error) {
 	}, nil
 }
 
-func convertAPIBundleToModelProperties(b *Bundle) ([]model.Property, error) {
-	var out []model.Property
+func convertAPIBundleToModelProperties(b *Bundle) ([]property.Property, error) {
+	var out []property.Property
 
 	for _, skip := range b.Skips {
-		skipJson, err := json.Marshal(skip)
-		if err != nil {
-			return nil, fmt.Errorf("marshal %q property %q: %v", propertyTypeSkips, skip, err)
-		}
-		out = append(out, model.Property{
-			Type:  propertyTypeSkips,
-			Value: skipJson,
-		})
+		out = append(out, property.MustBuildSkips(skip))
 	}
 
 	if b.SkipRange != "" {
-		// Use a JSON encoder so we can disable HTML escaping.
-		buf := &bytes.Buffer{}
-		enc := json.NewEncoder(buf)
-		enc.SetEscapeHTML(false)
-		err := enc.Encode(b.SkipRange)
-		if err != nil {
-			return nil, fmt.Errorf("marshal %q property %q: %v", propertyTypeSkipRange, b.SkipRange, err)
-		}
-		out = append(out, model.Property{
-			Type:  propertyTypeSkipRange,
-			Value: buf.Bytes(),
-		})
+		out = append(out, property.MustBuildSkipRange(b.SkipRange))
 	}
 
-	ch := channel{Name: b.ChannelName, Replaces: b.Replaces}
-	channelJson, err := json.Marshal(ch)
-	if err != nil {
-		return nil, fmt.Errorf("marshal %q property %+v: %v", propertyTypeChannel, ch, err)
-	}
-	out = append(out, model.Property{
-		Type:  propertyTypeChannel,
-		Value: channelJson,
-	})
+	out = append(out, property.MustBuildChannel(b.ChannelName, b.Replaces))
 
-	providedGVKs := map[gvk]*gvkp{}
-	requiredGVKs := map[gvk]*gvkp{}
+	providedGVKs := map[property.GVKProvided]*property.GVKProvided{}
+	requiredGVKs := map[property.GVKRequired]*property.GVKRequired{}
 
 	foundPackageProperty := false
 	for i, p := range b.Properties {
 		switch p.Type {
-		case apiTypeGVK:
-			var v gvkp
+		case property.TypeGVK:
+			var v GroupVersionKind
 			if err := json.Unmarshal(json.RawMessage(p.Value), &v); err != nil {
-				return nil, propertyParseError{i, p.Type, err}
+				return nil, property.ParseError{Idx: i, Typ: p.Type, Err: err}
 			}
-			providedGVKs[gvk{v.Group, v.Kind, v.Version}] = &v
-		case apiTypePackage:
+			k := property.GVKProvided{Group: v.Group, Kind: v.Kind, Version: v.Version}
+			providedGVKs[k] = &property.GVKProvided{Group: v.Group, Kind: v.Kind, Version: v.Version, Plural: v.Plural}
+		case property.TypePackage:
 			foundPackageProperty = true
-			out = append(out, model.Property{
-				Type:  propertyTypeProvidedPackage,
+			out = append(out, property.Property{
+				Type:  property.TypePackageProvided,
 				Value: json.RawMessage(p.Value),
 			})
-			out = append(out, model.Property{
-				Type:  apiTypePackage,
+			out = append(out, property.Property{
+				Type:  property.TypePackage,
 				Value: json.RawMessage(p.Value),
 			})
 		default:
-			out = append(out, model.Property{
+			out = append(out, property.Property{
 				Type:  p.Type,
 				Value: json.RawMessage(p.Value),
 			})
@@ -93,80 +68,50 @@ func convertAPIBundleToModelProperties(b *Bundle) ([]model.Property, error) {
 
 	for i, p := range b.Dependencies {
 		switch p.Type {
-		case apiTypeGVK:
-			var v gvkp
+		case property.TypeGVK:
+			var v GroupVersionKind
 			if err := json.Unmarshal(json.RawMessage(p.Value), &v); err != nil {
-				return nil, propertyParseError{i, p.Type, err}
+				return nil, property.ParseError{Idx: i, Typ: p.Type, Err: err}
 			}
-			requiredGVKs[gvk{v.Group, v.Kind, v.Version}] = &v
-		case apiTypePackage:
-			out = append(out, model.Property{
-				Type:  propertyTypeRequiredPackage,
+			k := property.GVKRequired{Group: v.Group, Kind: v.Kind, Version: v.Version}
+			requiredGVKs[k] = &property.GVKRequired{Group: v.Group, Kind: v.Kind, Version: v.Version, Plural: v.Plural}
+		case property.TypePackage:
+			out = append(out, property.Property{
+				Type:  property.TypePackageRequired,
 				Value: json.RawMessage(p.Value),
 			})
 		}
 	}
 
 	if !foundPackageProperty {
-		provPkg := providedPackage{
-			PackageName: b.PackageName,
-			Version:     b.Version,
-		}
-		provPkgJson, err := json.Marshal(provPkg)
-		if err != nil {
-			return nil, fmt.Errorf("marshal %q property %+v: %v", propertyTypeProvidedPackage, provPkg, err)
-		}
-		out = append(out, model.Property{
-			Type:  propertyTypeProvidedPackage,
-			Value: provPkgJson,
-		})
-		out = append(out, model.Property{
-			Type:  apiTypePackage,
-			Value: provPkgJson,
-		})
+		out = append(out, property.MustBuildPackage(b.PackageName, b.Version))
+		out = append(out, property.MustBuildPackageProvided(b.PackageName, b.Version))
 	}
 
 	for _, p := range b.ProvidedApis {
-		k := gvk{p.Group, p.Kind, p.Version}
+		k := property.GVKProvided{Group: p.Group, Kind: p.Kind, Version: p.Version}
 		if v, ok := providedGVKs[k]; !ok {
-			providedGVKs[k] = &gvkp{p.Group, p.Kind, p.Version, p.Plural}
+			providedGVKs[k] = &property.GVKProvided{Group: p.Group, Kind: p.Kind, Version: p.Version, Plural: p.Plural}
 		} else {
 			v.Plural = p.Plural
 		}
 	}
 	for _, p := range b.RequiredApis {
-		k := gvk{p.Group, p.Kind, p.Version}
+		k := property.GVKRequired{Group: p.Group, Kind: p.Kind, Version: p.Version}
 		if v, ok := requiredGVKs[k]; !ok {
-			requiredGVKs[k] = &gvkp{p.Group, p.Kind, p.Version, p.Plural}
+			requiredGVKs[k] = &property.GVKRequired{Group: p.Group, Kind: p.Kind, Version: p.Version, Plural: p.Plural}
 		} else {
 			v.Plural = p.Plural
 		}
 	}
 
 	for _, p := range providedGVKs {
-		gvkJson, err := json.Marshal(p)
-		if err != nil {
-			return nil, fmt.Errorf("marshal %q property %+v: %v", propertyTypeProvidedGVK, p, err)
-		}
-		out = append(out, model.Property{
-			Type:  propertyTypeProvidedGVK,
-			Value: gvkJson,
-		})
-		out = append(out, model.Property{
-			Type:  apiTypeGVK,
-			Value: marshalAsGVKProperty(gvkJson),
-		})
+		out = append(out, property.MustBuildGVKProvided(p.Group, p.Version, p.Kind, p.Plural))
+		out = append(out, property.MustBuildGVK(p.Group, p.Version, p.Kind, ""))
 	}
 
 	for _, p := range requiredGVKs {
-		gvkJson, err := json.Marshal(p)
-		if err != nil {
-			return nil, fmt.Errorf("marshal %q property %+v: %v", propertyTypeProvidedGVK, p, err)
-		}
-		out = append(out, model.Property{
-			Type:  propertyTypeRequiredGVK,
-			Value: gvkJson,
-		})
+		out = append(out, property.MustBuildGVKRequired(p.Group, p.Version, p.Kind, p.Plural))
 	}
 
 	return out, nil

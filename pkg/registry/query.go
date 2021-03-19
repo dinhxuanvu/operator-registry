@@ -165,7 +165,6 @@ func (q Querier) GetBundle(_ context.Context, pkgName, channelName, csvName stri
 	}
 
 	// unset Replaces and Skips (sqlite query does not populate these fields)
-	// TODO(joelanford): should these fields be populated?
 	apiBundle.Replaces = ""
 	apiBundle.Skips = nil
 	return apiBundle, nil
@@ -195,7 +194,6 @@ func (q Querier) GetBundleForChannel(_ context.Context, pkgName string, channelN
 	}
 
 	// unset Replaces and Skips (sqlite query does not populate these fields)
-	// TODO(joelanford): should these fields be populated?
 	apiBundle.Replaces = ""
 	apiBundle.Skips = nil
 	return apiBundle, nil
@@ -242,7 +240,6 @@ func (q Querier) GetBundleThatReplaces(_ context.Context, name, pkgName, channel
 			}
 
 			// unset Replaces and Skips (sqlite query does not populate these fields)
-			// TODO(joelanford): should these fields be populated?
 			apiBundle.Replaces = ""
 			apiBundle.Skips = nil
 			return apiBundle, nil
@@ -262,7 +259,11 @@ func (q Querier) GetChannelEntriesThatProvide(_ context.Context, group, version,
 					return nil, err
 				}
 				if provides {
-					entries = append(entries, channelEntriesForBundle(*b)...)
+					// TODO(joelanford): It seems like the SQLite query returns
+					//   invalid entries (i.e. where bundle `Replaces` isn't actually
+					//   in channel `ChannelName`). Is that a bug? For now, this mimics
+					//   the sqlite server and returns seemingly invalid channel entries.
+					entries = append(entries, channelEntriesForBundle(*b, true)...)
 				}
 			}
 		}
@@ -295,7 +296,7 @@ func (q Querier) GetLatestChannelEntriesThatProvide(_ context.Context, group, ve
 				return nil, err
 			}
 			if provides {
-				entries = append(entries, latestChannelEntriesForBundle(*b)...)
+				entries = append(entries, channelEntriesForBundle(*b, false)...)
 			}
 		}
 	}
@@ -380,7 +381,7 @@ func channelEntriesThatReplace(b model.Bundle, name string) []*ChannelEntry {
 	return entries
 }
 
-func latestChannelEntriesForBundle(b model.Bundle) []*ChannelEntry {
+func channelEntriesForBundle(b model.Bundle, ignoreChannel bool) []*ChannelEntry {
 	entries := []*ChannelEntry{{
 		PackageName: b.Package.Name,
 		ChannelName: b.Channel.Name,
@@ -388,36 +389,9 @@ func latestChannelEntriesForBundle(b model.Bundle) []*ChannelEntry {
 		Replaces:    b.Replaces,
 	}}
 	for _, s := range b.Skips {
-		// If the skipped bundle is in this channel AND it isn't what
-		// this bundle replaces add a channel entry for it.
-		if _, ok := b.Channel.Bundles[s]; ok && s != b.Replaces {
-			entries = append(entries, &ChannelEntry{
-				PackageName: b.Package.Name,
-				ChannelName: b.Channel.Name,
-				BundleName:  b.Name,
-				Replaces:    s,
-			})
-		}
-	}
-	return entries
-}
-
-func channelEntriesForBundle(b model.Bundle) []*ChannelEntry {
-	entries := []*ChannelEntry{{
-		PackageName: b.Package.Name,
-		ChannelName: b.Channel.Name,
-		BundleName:  b.Name,
-		Replaces:    b.Replaces,
-	}}
-	for _, s := range b.Skips {
-		// If the skipped bundle isn't what this bundle replaces add a
-		// channel entry for it.
-		//
-		// TODO(joelanford): It seems like the SQLite query returns
-		//   invalid entries (i.e. where bundle `Replaces` isn't actually
-		//   in channel `ChannelName`). Is that a bug? For now, this mimics
-		//   the sqlite server and returns seemingly invalid channel entries.
-		if s != b.Replaces {
+		// Ignore skips that duplicate b.Replaces. Also, only add it if its
+		// in the same channel as b (or we're ignoring channel presence).
+		if _, inChannel := b.Channel.Bundles[s]; s != b.Replaces && (ignoreChannel || inChannel) {
 			entries = append(entries, &ChannelEntry{
 				PackageName: b.Package.Name,
 				ChannelName: b.Channel.Name,

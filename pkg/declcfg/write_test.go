@@ -20,7 +20,9 @@ func TestWriteDir(t *testing.T) {
 		setupDir  func() (string, error)
 		assertion require.ErrorAssertionFunc
 	}
-	setupNonExistentDir := func() (string, error) { return filepath.Join(os.TempDir(), "decl-write-dir-"+rand.String(5)), nil }
+	setupNonExistentDir := func() (string, error) {
+		return filepath.Join(os.TempDir(), "decl-write-dir-"+rand.String(5)), nil
+	}
 	setupEmptyDir := func() (string, error) { return ioutil.TempDir("", "decl-write-dir-") }
 	setupNonEmptyDir := func() (string, error) {
 		dir, err := ioutil.TempDir("", "decl-write-dir-")

@@ -652,21 +652,6 @@ func EqualBundles(t *testing.T, expected, actual api.Bundle) {
 	require.ElementsMatch(t, expected.Properties, actual.Properties, "properties don't match: %#v\n%#v", expected.Properties, actual.Properties)
 	require.ElementsMatch(t, expected.Object, actual.Object, "objects don't match: %#v\n%#v", expected.Object, actual.Object)
 
-	// Check that every expected property is present in the actual properties. Declarative config
-	// adds some extra properties when migrating an existing database that are net new and expected.
-	// TODO(joelanford): Refactor/improve these or other tests to verify presence of declarative
-	//    config's new properties.
-	fmt.Println("************ EXPECTED **************")
-	for _, e := range expected.Properties {
-		fmt.Printf("type: %q value: %s\n", e.Type, e.Value)
-		require.Contains(t, actual.Properties, e)
-	}
-
-	fmt.Println("************ ACTUAL ****************")
-	for _, a := range actual.Properties {
-		fmt.Printf("type: %q value: %s\n", a.Type, a.Value)
-	}
-
 	expected.RequiredApis, expected.ProvidedApis, actual.RequiredApis, actual.ProvidedApis = nil, nil, nil, nil
 	expected.Dependencies, expected.Properties, actual.Dependencies, actual.Properties = nil, nil, nil, nil
 	expected.Object, actual.Object = nil, nil

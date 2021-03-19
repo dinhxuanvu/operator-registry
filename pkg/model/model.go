@@ -1,8 +1,6 @@
 package model
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -11,6 +9,8 @@ import (
 	"github.com/h2non/filetype/matchers"
 	"github.com/h2non/filetype/types"
 	svg "github.com/h2non/go-is-svg"
+
+	"github.com/operator-framework/operator-registry/pkg/property"
 )
 
 func init() {
@@ -127,10 +127,10 @@ func (c Channel) Head() (*Bundle, error) {
 	incoming := map[string]int{}
 	for _, b := range c.Bundles {
 		if b.Replaces != "" {
-			incoming[b.Replaces] += 1
+			incoming[b.Replaces]++
 		}
 		for _, skip := range b.Skips {
-			incoming[skip] += 1
+			incoming[skip]++
 		}
 	}
 	var heads []*Bundle
@@ -190,7 +190,7 @@ type Bundle struct {
 	Image         string
 	Replaces      string
 	Skips         []string
-	Properties    []Property
+	Properties    []property.Property
 	RelatedImages []RelatedImage
 }
 
@@ -212,10 +212,9 @@ func (b *Bundle) Validate() error {
 			return fmt.Errorf("replaces %q not found in channel", b.Replaces)
 		}
 	}
-	for i, prop := range b.Properties {
-		if err := prop.Validate(); err != nil {
-			return fmt.Errorf("invalid property[%d]: %v", i, err)
-		}
+	props, err := property.Parse(b.Properties)
+	if err != nil {
+		return err
 	}
 	for i, skip := range b.Skips {
 		if skip == "" {
@@ -228,121 +227,10 @@ func (b *Bundle) Validate() error {
 		}
 	}
 
-	if err := validateBackCompatProperties(b.Properties); err != nil {
+	if err := property.ValidateBackCompat(*props); err != nil {
 		return err
 	}
 
-	return nil
-}
-
-const (
-	propertyTypePackage         = "olm.package"
-	propertyTypePackageProvided = "olm.package.provided"
-	propertyTypeGVK             = "olm.gvk"
-	propertyTypeGVKProvided     = "olm.gvk.provided"
-)
-
-func validateBackCompatProperties(in []Property) error {
-	packageProps := map[string]struct{}{}
-	packageProvidedProps := map[string]struct{}{}
-
-	// Ignore "plural" field for GVK properties for the purposes of this validation.
-	type gvk struct {
-		Group   string `json:"group"`
-		Version string `json:"version"`
-		Kind    string `json:"kind"`
-	}
-	gvkProps := map[gvk]struct{}{}
-	gvkProvidedProps := map[gvk]struct{}{}
-
-	for i, prop := range in {
-		k := string(prop.Value)
-		switch prop.Type {
-		case propertyTypePackage:
-			packageProps[k] = struct{}{}
-		case propertyTypePackageProvided:
-			packageProvidedProps[k] = struct{}{}
-		case propertyTypeGVK:
-			var v gvk
-			if err := json.Unmarshal(prop.Value, &v); err != nil {
-				return propertyParseError{i, prop.Type, err}
-			}
-			gvkProps[v] = struct{}{}
-		case propertyTypeGVKProvided:
-			var v gvk
-			if err := json.Unmarshal(prop.Value, &v); err != nil {
-				return propertyParseError{i, prop.Type, err}
-			}
-			gvkProvidedProps[v] = struct{}{}
-		}
-	}
-
-	if len(packageProvidedProps) != 1 {
-		return fmt.Errorf("property type %q is required", propertyTypePackageProvided)
-	}
-
-	for k := range packageProps {
-		if _, ok := packageProvidedProps[k]; !ok {
-			return matchingPropertyMissingError{propertyTypePackage, k, propertyTypePackageProvided}
-		}
-	}
-	for k := range packageProvidedProps {
-		if _, ok := packageProps[k]; !ok {
-			return matchingPropertyMissingError{propertyTypePackageProvided, k, propertyTypePackage}
-		}
-	}
-	for k := range gvkProps {
-		if _, ok := gvkProvidedProps[k]; !ok {
-			return matchingPropertyMissingError{propertyTypeGVK, k, propertyTypeGVKProvided}
-		}
-	}
-	for k := range gvkProvidedProps {
-		if _, ok := gvkProps[k]; !ok {
-			return matchingPropertyMissingError{propertyTypeGVKProvided, k, propertyTypeGVK}
-		}
-	}
-
-	return nil
-}
-
-type propertyParseError struct {
-	i   int
-	t   string
-	err error
-}
-
-func (e propertyParseError) Error() string {
-	return fmt.Sprintf("properties[%d].value parse error for %q: %v", e.i, e.t, e.err)
-}
-
-type matchingPropertyMissingError struct {
-	foundType    string
-	foundValue   interface{}
-	expectedType string
-}
-
-func (e matchingPropertyMissingError) Error() string {
-	return fmt.Sprintf("property %q for %+v requires matching %q property", e.foundType, e.foundValue, e.expectedType)
-}
-
-type Property struct {
-	Type  string
-	Value json.RawMessage
-}
-
-func (p Property) Validate() error {
-	if p.Type == "" {
-		return errors.New("type must be set")
-	}
-
-	if len(p.Value) == 0 {
-		return errors.New("value must be set")
-	}
-
-	var v json.RawMessage
-	if err := json.Unmarshal(p.Value, &v); err != nil {
-		return fmt.Errorf("invalid value: %v", err)
-	}
 	return nil
 }
 
@@ -366,21 +254,12 @@ func (m Model) Normalize() {
 		for _, ch := range pkg.Channels {
 			for _, b := range ch.Bundles {
 				for i := range b.Properties {
-					b.Properties[i].Value = encodeValue(b.Properties[i].Value)
+					// Ensure property value is encoded in a standard way.
+					if normalized, err := property.Build(&b.Properties[i]); err == nil {
+						b.Properties[i] = *normalized
+					}
 				}
 			}
 		}
 	}
-}
-
-func encodeValue(in json.RawMessage) json.RawMessage {
-	valueBuf := &bytes.Buffer{}
-	enc := json.NewEncoder(valueBuf)
-	enc.SetEscapeHTML(false)
-	enc.SetIndent("", "")
-	enc.SetEscapeHTML(false)
-	if err := enc.Encode(in); err != nil {
-		return in
-	}
-	return json.RawMessage(strings.TrimSpace(valueBuf.String()))
 }

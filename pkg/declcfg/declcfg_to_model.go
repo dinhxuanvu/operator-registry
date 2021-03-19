@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/operator-framework/operator-registry/pkg/model"
+	"github.com/operator-framework/operator-registry/pkg/property"
 )
 
 func ConvertToModel(cfg DeclarativeConfig) (model.Model, error) {
@@ -39,7 +40,7 @@ func ConvertToModel(cfg DeclarativeConfig) (model.Model, error) {
 		if err != nil {
 			return nil, fmt.Errorf("parse properties for bundle %q: %v", b.Name, err)
 		}
-		for _, bundleChannel := range props.channels {
+		for _, bundleChannel := range props.Channels {
 			pkgChannel, ok := mpkg.Channels[bundleChannel.Name]
 			if !ok {
 				pkgChannel = &model.Channel{
@@ -59,8 +60,8 @@ func ConvertToModel(cfg DeclarativeConfig) (model.Model, error) {
 				Name:          b.Name,
 				Image:         b.Image,
 				Replaces:      bundleChannel.Replaces,
-				Skips:         props.skips,
-				Properties:    propertiesToModelProperties(b.Properties),
+				Skips:         skipsToStrings(props.Skips),
+				Properties:    b.Properties,
 				RelatedImages: relatedImagesToModelRelatedImages(b.RelatedImages),
 			}
 		}
@@ -81,13 +82,10 @@ func ConvertToModel(cfg DeclarativeConfig) (model.Model, error) {
 	return mpkgs, nil
 }
 
-func propertiesToModelProperties(in []property) []model.Property {
-	var out []model.Property
-	for _, p := range in {
-		out = append(out, model.Property{
-			Type:  p.Type,
-			Value: p.Value,
-		})
+func skipsToStrings(in []property.Skips) []string {
+	var out []string
+	for _, s := range in {
+		out = append(out, string(s))
 	}
 	return out
 }
