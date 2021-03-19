@@ -53,7 +53,6 @@ func ConvertToModel(cfg DeclarativeConfig) (model.Model, error) {
 				}
 				mpkg.Channels[bundleChannel.Name] = pkgChannel
 			}
-
 			pkgChannel.Bundles[b.Name] = &model.Bundle{
 				Package:       mpkg,
 				Channel:       pkgChannel,
@@ -67,10 +66,15 @@ func ConvertToModel(cfg DeclarativeConfig) (model.Model, error) {
 				Objects:       b.Objects,
 			}
 		}
+	}
+
+	for _, mpkg := range mpkgs {
+		defaultChannelName := defaultChannels[mpkg.Name]
 		if mpkg.DefaultChannel == nil {
 			dch := &model.Channel{
 				Package: mpkg,
 				Name:    defaultChannelName,
+				Bundles: map[string]*model.Bundle{},
 			}
 			mpkg.DefaultChannel = dch
 			mpkg.Channels[dch.Name] = dch
