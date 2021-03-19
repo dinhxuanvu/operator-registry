@@ -9,12 +9,14 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
 const (
-	tarDirName = "index"
-	globalName = "__global"
+	tarDirName     = "index"
+	objectsDirName = "objects"
+	globalName     = "__global"
 )
 
 func WriteDir(cfg DeclarativeConfig, configDir string) error {
@@ -39,16 +41,7 @@ func WriteTar(cfg DeclarativeConfig, tarFile string) error {
 	tw := tar.NewWriter(f)
 	defer tw.Close()
 
-	return writeToFS(cfg, &tarWriter{tw}, tarDirName)
-}
-
-func WriteFile(cfg DeclarativeConfig, configFile string) error {
-	f, err := os.OpenFile(configFile, os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	return writeJSON(cfg, f)
+	return writeToFS(cfg, newTarWriter(tw), tarDirName)
 }
 
 type fsWriter interface {
@@ -71,17 +64,31 @@ func (w diskWriter) WriteFile(path string, data []byte, mode os.FileMode) error 
 var _ fsWriter = &tarWriter{}
 
 type tarWriter struct {
-	tw *tar.Writer
+	tw     *tar.Writer
+	mkdirs map[string]struct{}
 }
 
-func (w tarWriter) MkdirAll(path string, mode os.FileMode) error {
+func newTarWriter(tw *tar.Writer) *tarWriter {
+	return &tarWriter{
+		tw:     tw,
+		mkdirs: map[string]struct{}{},
+	}
+}
+
+func (w *tarWriter) MkdirAll(path string, mode os.FileMode) error {
 	if path == "" {
 		return nil
 	}
+	path = strings.TrimSuffix(path, "/")
+	if _, ok := w.mkdirs[path]; ok {
+		return nil
+	}
 	dir, _ := filepath.Split(path)
+
 	if err := w.MkdirAll(dir, mode); err != nil {
 		return err
 	}
+	w.mkdirs[path] = struct{}{}
 	return w.tw.WriteHeader(&tar.Header{
 		Name:       path,
 		Mode:       int64(mode),
@@ -138,6 +145,25 @@ func writeToFS(cfg DeclarativeConfig, w fsWriter, rootDir string) error {
 		if err := writeFile(fcfg, w, filename); err != nil {
 			return err
 		}
+	}
+
+	for pkgName, bundles := range bundlesByPackage {
+		pkgDir := filepath.Join(rootDir, objectsDirName, pkgName)
+		for _, b := range bundles {
+			if len(b.Objects) > 0 {
+				bundleDir := filepath.Join(pkgDir, b.Name)
+				if err := w.MkdirAll(bundleDir, 0755); err != nil {
+					return fmt.Errorf("mkdir %q: %v", rootDir, err)
+				}
+				for i, obj := range b.Objects {
+					objFilename := filepath.Join(bundleDir, fmt.Sprintf("obj_%04d", i))
+					if err := w.WriteFile(objFilename, []byte(obj), 0644); err != nil {
+						return fmt.Errorf("write file %q: %v", objFilename, err)
+					}
+				}
+			}
+		}
+
 	}
 
 	if globals, ok := othersByPackage[globalName]; ok {

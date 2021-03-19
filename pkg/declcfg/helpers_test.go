@@ -89,6 +89,11 @@ func newTestBundle(packageName, version string, opts ...bundleOpt) bundle {
 				Image: testBundleImage(packageName, version),
 			},
 		},
+		CsvJSON: `{"kind": "ClusterServiceVersion", "apiVersion": "operators.coreos.com/v1alpha1"}`,
+		Objects: []string{
+			`{"kind": "ClusterServiceVersion", "apiVersion": "operators.coreos.com/v1alpha1"}`,
+			`{"kind": "CustomResourceDefinition", "apiVersion": "apiextensions.k8s.io/v1"}`,
+		},
 	}
 	for _, opt := range opts {
 		opt(&b)
@@ -177,6 +182,11 @@ func buildAnakinPkgModel() *model.Package {
 					Name:  "bundle",
 					Image: testBundleImage(pkgName, version),
 				}},
+				CsvJSON: `{"kind": "ClusterServiceVersion", "apiVersion": "operators.coreos.com/v1alpha1"}`,
+				Objects: []string{
+					`{"kind": "ClusterServiceVersion", "apiVersion": "operators.coreos.com/v1alpha1"}`,
+					`{"kind": "CustomResourceDefinition", "apiVersion": "apiextensions.k8s.io/v1"}`,
+				},
 			}
 			ch.Bundles[bName] = bundle
 		}
@@ -228,6 +238,11 @@ func buildBobaFettPkgModel() *model.Package {
 					Name:  "bundle",
 					Image: testBundleImage(pkgName, version),
 				}},
+				CsvJSON: `{"kind": "ClusterServiceVersion", "apiVersion": "operators.coreos.com/v1alpha1"}`,
+				Objects: []string{
+					`{"kind": "ClusterServiceVersion", "apiVersion": "operators.coreos.com/v1alpha1"}`,
+					`{"kind": "CustomResourceDefinition", "apiVersion": "apiextensions.k8s.io/v1"}`,
+				},
 			}
 			ch.Bundles[bName] = bundle
 		}

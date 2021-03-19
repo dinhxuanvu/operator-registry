@@ -30,6 +30,8 @@ func ConvertModelBundleToAPIBundle(b model.Bundle) (*Bundle, error) {
 		Properties:   convertModelPropertiesToAPIProperties(b.Properties),
 		Replaces:     b.Replaces,
 		Skips:        b.Skips,
+		CsvJson:      b.CsvJSON,
+		Object:       b.Objects,
 	}, nil
 }
 

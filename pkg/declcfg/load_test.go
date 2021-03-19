@@ -62,7 +62,7 @@ func TestLoadFile(t *testing.T) {
 
 	for _, s := range specs {
 		t.Run(s.name, func(t *testing.T) {
-			cfg, err := LoadFile(s.file)
+			cfg, err := loadFile(s.file)
 			s.assertion(t, err)
 			if err == nil {
 				require.NotNil(t, cfg)

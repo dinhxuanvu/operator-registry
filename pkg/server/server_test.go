@@ -75,12 +75,7 @@ func cfgStore() *registry.Querier {
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	objs, err := sqlite.GetBundleObjects(context.TODO(), dbStore)
-	if err != nil {
-		logrus.Fatal(err)
-	}
 	store := registry.NewQuerier(m)
-	store.SetBundleObjects(objs)
 	return store
 }
 

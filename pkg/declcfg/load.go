@@ -6,9 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/ghodss/yaml"
+	"github.com/operator-framework/api/pkg/operators"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 func LoadDir(configDir string) (*DeclarativeConfig, error) {
@@ -25,10 +30,10 @@ func LoadTar(tarFile string) (*DeclarativeConfig, error) {
 
 	tr := tar.NewReader(f)
 	tw := tarWalker{tr}
-	return loadFS("", tw)
+	return loadFS("index", tw)
 }
 
-func LoadFile(configFile string) (*DeclarativeConfig, error) {
+func loadFile(configFile string) (*DeclarativeConfig, error) {
 	f, err := os.Open(configFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file: %v", err)
@@ -39,19 +44,60 @@ func LoadFile(configFile string) (*DeclarativeConfig, error) {
 
 func loadFS(root string, w fsWalker) (*DeclarativeConfig, error) {
 	cfg := &DeclarativeConfig{}
+	objects := map[string]map[string][]string{}
 	if err := w.WalkFiles(root, func(path string, r io.Reader) error {
-		fileCfg, err := readJSON(r)
-		if err != nil {
-			return fmt.Errorf("could not load config file %q: %v", path, err)
+		relPath := strings.TrimPrefix(path, root+"/")
+		relPathSegments := strings.Split(relPath, "/")
+
+		// Looking for "objects/<pkgName>/<bundleName>/*
+		if len(relPathSegments) == 4 && relPathSegments[0] == objectsDirName {
+			pkgName := relPathSegments[1]
+			bundleName := relPathSegments[2]
+			obj, err := ioutil.ReadAll(r)
+			if err != nil {
+				return fmt.Errorf("read object from path %q: %v", path, err)
+			}
+			if _, pkgExists := objects[pkgName]; !pkgExists {
+				objects[pkgName] = map[string][]string{}
+			}
+			objects[pkgName][bundleName] = append(objects[pkgName][bundleName], string(obj))
+		} else {
+			fileCfg, err := readJSON(r)
+			if err != nil {
+				return fmt.Errorf("could not load config file %q: %v", path, err)
+			}
+			cfg.Packages = append(cfg.Packages, fileCfg.Packages...)
+			cfg.Bundles = append(cfg.Bundles, fileCfg.Bundles...)
+			cfg.others = append(cfg.others, fileCfg.others...)
 		}
-		cfg.Packages = append(cfg.Packages, fileCfg.Packages...)
-		cfg.Bundles = append(cfg.Bundles, fileCfg.Bundles...)
-		cfg.others = append(cfg.others, fileCfg.others...)
 		return nil
 	}); err != nil {
 		return nil, fmt.Errorf("failed to read declarative configs dir: %v", err)
 	}
+
+	for i, b := range cfg.Bundles {
+		pkg, ok := objects[b.Package]
+		if !ok {
+			continue
+		}
+		objs := pkg[b.Name]
+		cfg.Bundles[i].Objects = objs
+		cfg.Bundles[i].CsvJSON = extractCSV(objs)
+	}
 	return cfg, nil
+}
+
+func extractCSV(objs []string) string {
+	for _, obj := range objs {
+		u := unstructured.Unstructured{}
+		if err := yaml.Unmarshal([]byte(obj), &u); err != nil {
+			continue
+		}
+		if u.GetKind() == operators.ClusterServiceVersionKind {
+			return obj
+		}
+	}
+	return ""
 }
 
 func readJSON(r io.Reader) (*DeclarativeConfig, error) {

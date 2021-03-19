@@ -18,6 +18,8 @@ func ConvertAPIBundleToModelBundle(b *Bundle) (*model.Bundle, error) {
 		Image:      b.BundlePath,
 		Replaces:   b.Replaces,
 		Skips:      b.Skips,
+		CsvJSON:    b.CsvJson,
+		Objects:    b.Object,
 		Properties: bundleProps,
 	}, nil
 }

@@ -36,8 +36,6 @@ type serve struct {
 	timeout        string
 
 	logger *logrus.Entry
-
-	objectsDirectory string
 }
 
 func newRegistryServeCmd() *cobra.Command {
@@ -65,7 +63,6 @@ func newRegistryServeCmd() *cobra.Command {
 	rootCmd.Flags().StringVarP(&s.terminationLog, "termination-log", "t", "/dev/termination-log", "path to a container termination log file")
 	rootCmd.Flags().BoolVar(&s.skipMigrate, "skip-migrate", false, "do  not attempt to migrate to the latest db revision when starting")
 	rootCmd.Flags().StringVar(&s.timeout, "timeout-seconds", "infinite", "Timeout in seconds. This flag will be removed later.")
-	rootCmd.Flags().StringVarP(&s.objectsDirectory, "objects", "o", "objects", "relative path to directory containing bundle objects")
 	return rootCmd
 }
 
@@ -98,19 +95,13 @@ func (s *serve) run(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("load declarative config directory: %v", err)
 		}
-		store, storeErr = declcfgQuerier(*cfg, s.objectsDirectory)
-	case mode.ModeDeclCfgFile:
-		cfg, err := declcfg.LoadFile(s.database)
-		if err != nil {
-			return fmt.Errorf("load declarative config file: %v", err)
-		}
-		store, storeErr = declcfgQuerier(*cfg, s.objectsDirectory)
+		store, storeErr = declcfgQuerier(*cfg)
 	case mode.ModeDeclCfgTar:
 		cfg, err := declcfg.LoadTar(s.database)
 		if err != nil {
 			return fmt.Errorf("load declarative config tar: %v", err)
 		}
-		store, storeErr = declcfgQuerier(*cfg, s.objectsDirectory)
+		store, storeErr = declcfgQuerier(*cfg)
 	case mode.ModeSqlite:
 		// make a writable copy of the db for migrations
 		tmpdb, err := tmp.CopyTmpDB(s.database)
@@ -158,15 +149,12 @@ func (s *serve) run(ctx context.Context) error {
 	})
 }
 
-func declcfgQuerier(cfg declcfg.DeclarativeConfig, objectsDir string) (registry.GRPCQuery, error) {
+func declcfgQuerier(cfg declcfg.DeclarativeConfig) (registry.GRPCQuery, error) {
 	m, err := declcfg.ConvertToModel(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("could not build index model from declarative config: %v", err)
 	}
 	q := registry.NewQuerier(m)
-	if err := q.LoadBundleObjects(objectsDir); err != nil {
-		return nil, fmt.Errorf("could not load bundle objects from dir %q: %v", objectsDir, err)
-	}
 	return q, nil
 }
 
@@ -198,19 +186,11 @@ func (s *serve) loadDBStore(ctx context.Context, source string) (registry.GRPCQu
 		return dbStore, nil
 	}
 
-	objs, err := sqlite.GetBundleObjects(ctx, dbStore)
-	if err != nil {
-		return nil, err
-	}
-
 	m, err := sqlite.ToModel(ctx, dbStore)
 	if err != nil {
 		return nil, err
 	}
-	q := registry.NewQuerier(m)
-	q.SetBundleObjects(objs)
-
-	return q, nil
+	return registry.NewQuerier(m), nil
 }
 
 func (s serve) migrate(ctx context.Context, db *sql.DB) error {

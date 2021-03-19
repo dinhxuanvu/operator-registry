@@ -80,29 +80,34 @@ func TestWriteDir(t *testing.T) {
 			err = WriteDir(s.cfg, testDir)
 			s.assertion(t, err)
 			if err == nil {
-				files, err := ioutil.ReadDir(testDir)
+				entries, err := ioutil.ReadDir(testDir)
 				require.NoError(t, err)
-				filenames := []string{}
-				for _, f := range files {
-					filenames = append(filenames, f.Name())
+				entryNames := []string{}
+				for _, f := range entries {
+					entryNames = append(entryNames, f.Name())
 				}
 
-				expectedFiles := []string{fmt.Sprintf("%s.json", globalName), "anakin.json", "boba-fett.json"}
-				require.ElementsMatch(t, expectedFiles, filenames)
+				expectedEntryNames := []string{
+					fmt.Sprintf("%s.json", globalName),
+					"anakin.json",
+					"boba-fett.json",
+					"objects",
+				}
+				require.ElementsMatch(t, expectedEntryNames, entryNames)
 
-				anakin, err := LoadFile(filepath.Join(testDir, "anakin.json"))
+				anakin, err := loadFile(filepath.Join(testDir, "anakin.json"))
 				require.NoError(t, err)
 				assert.Len(t, anakin.Packages, 1)
 				assert.Len(t, anakin.Bundles, 3)
 				assert.Len(t, anakin.others, 1)
 
-				bobaFett, err := LoadFile(filepath.Join(testDir, "boba-fett.json"))
+				bobaFett, err := loadFile(filepath.Join(testDir, "boba-fett.json"))
 				require.NoError(t, err)
 				assert.Len(t, bobaFett.Packages, 1)
 				assert.Len(t, bobaFett.Bundles, 2)
 				assert.Len(t, bobaFett.others, 1)
 
-				globals, err := LoadFile(filepath.Join(testDir, fmt.Sprintf("%s.json", globalName)))
+				globals, err := loadFile(filepath.Join(testDir, fmt.Sprintf("%s.json", globalName)))
 				require.NoError(t, err)
 				assert.Len(t, globals.Packages, 0)
 				assert.Len(t, globals.Bundles, 0)
@@ -119,52 +124,6 @@ func TestWriteDir(t *testing.T) {
 	}
 }
 
-func TestWriteFile(t *testing.T) {
-	type spec struct {
-		name      string
-		cfg       DeclarativeConfig
-		setupFile func() (string, error)
-		assertion require.ErrorAssertionFunc
-	}
-
-	getFilename := func() (string, error) {
-		return filepath.Join(os.TempDir(), "decl-write-file-"+rand.String(5)+".json"), nil
-	}
-	getDirectory := func() (string, error) {
-		return ioutil.TempDir("", "decl-write-file-")
-	}
-
-	specs := []spec{
-		{
-			name:      "Success/NonExistentFile",
-			cfg:       buildValidDeclarativeConfig(true),
-			setupFile: getFilename,
-			assertion: require.NoError,
-		},
-		{
-			name:      "Error/NotAFile",
-			cfg:       buildValidDeclarativeConfig(true),
-			setupFile: getDirectory,
-			assertion: require.Error,
-		},
-	}
-	for _, s := range specs {
-		t.Run(s.name, func(t *testing.T) {
-			filename, err := s.setupFile()
-			require.NoError(t, err)
-			defer func() {
-				require.NoError(t, os.RemoveAll(filename))
-			}()
-			err = WriteFile(s.cfg, filename)
-			s.assertion(t, err)
-			if err == nil {
-				_, err = LoadFile(filename)
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
 func TestWriteLoadRoundtrip(t *testing.T) {
 	type spec struct {
 		name  string
@@ -173,11 +132,6 @@ func TestWriteLoadRoundtrip(t *testing.T) {
 	}
 
 	specs := []spec{
-		{
-			name:  "File",
-			write: WriteFile,
-			load:  LoadFile,
-		},
 		{
 			name:  "Dir",
 			write: WriteDir,

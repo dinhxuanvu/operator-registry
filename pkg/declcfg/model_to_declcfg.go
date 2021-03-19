@@ -52,6 +52,8 @@ func traverseModelChannels(mpkg model.Package) []bundle {
 					Package:       chb.Package.Name,
 					Image:         chb.Image,
 					RelatedImages: modelRelatedImagesToRelatedImages(chb.RelatedImages),
+					CsvJSON:       chb.CsvJSON,
+					Objects:       chb.Objects,
 				}
 				bundles[b.Name] = b
 			}

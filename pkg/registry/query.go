@@ -3,89 +3,22 @@ package registry
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
-	"path"
-	"path/filepath"
 	"sort"
-
-	"github.com/operator-framework/api/pkg/operators"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/operator-framework/operator-registry/pkg/model"
 )
 
 type Querier struct {
-	pkgs    model.Model
-	objects map[string]map[string]bundleObjects
-}
-
-type bundleObjects struct {
-	csv     string
-	objects []string
+	pkgs model.Model
 }
 
 var _ GRPCQuery = &Querier{}
 
 func NewQuerier(packages model.Model) *Querier {
 	return &Querier{
-		pkgs:    packages,
-		objects: map[string]map[string]bundleObjects{},
+		pkgs: packages,
 	}
-}
-
-func (q *Querier) LoadBundleObjects(objectsDir string) error {
-	pkgObjs := map[string]map[string]bundleObjects{}
-	for _, p := range q.pkgs {
-		pkgDir := filepath.Join(objectsDir, p.Name)
-		if _, ok := pkgObjs[p.Name]; !ok {
-			pkgObjs[p.Name] = map[string]bundleObjects{}
-		}
-		for _, ch := range p.Channels {
-			for _, b := range ch.Bundles {
-				if _, ok := pkgObjs[p.Name][b.Name]; ok {
-					continue
-				}
-				bundleDir := filepath.Join(pkgDir, b.Name)
-				bObjs, err := readBundleDirectory(bundleDir)
-				if err != nil {
-					return err
-				}
-				pkgObjs[p.Name][b.Name] = *bObjs
-			}
-		}
-	}
-	q.objects = pkgObjs
-	return nil
-}
-
-func (q *Querier) SetBundleObjects(pkgs map[string]map[string][]string) {
-	for pkgName, bundles := range pkgs {
-		if _, ok := q.objects[pkgName]; !ok {
-			q.objects[pkgName] = map[string]bundleObjects{}
-		}
-		for bundleName, objs := range bundles {
-			csv := extractCSV(objs)
-			q.objects[pkgName][bundleName] = bundleObjects{
-				csv:     csv,
-				objects: objs,
-			}
-		}
-	}
-}
-
-func extractCSV(objs []string) string {
-	for _, obj := range objs {
-		u := unstructured.Unstructured{}
-		if err := yaml.Unmarshal([]byte(obj), &u); err != nil {
-			continue
-		}
-		if u.GetKind() == operators.ClusterServiceVersionKind {
-			return obj
-		}
-	}
-	return ""
 }
 
 func (q Querier) ListPackages(_ context.Context) ([]string, error) {
@@ -100,16 +33,11 @@ func (q Querier) ListBundles(_ context.Context) ([]*api.Bundle, error) {
 	var bundles []*api.Bundle
 
 	for _, pkg := range q.pkgs {
-		objects := q.objects[pkg.Name]
 		for _, ch := range pkg.Channels {
 			for _, b := range ch.Bundles {
 				apiBundle, err := api.ConvertModelBundleToAPIBundle(*b)
 				if err != nil {
 					return nil, fmt.Errorf("convert bundle %q: %v", b.Name, err)
-				}
-				if objects != nil {
-					apiBundle.CsvJson = objects[b.Name].csv
-					apiBundle.Object = objects[b.Name].objects
 				}
 				bundles = append(bundles, apiBundle)
 			}
@@ -159,10 +87,6 @@ func (q Querier) GetBundle(_ context.Context, pkgName, channelName, csvName stri
 	if err != nil {
 		return nil, fmt.Errorf("convert bundle %q: %v", b.Name, err)
 	}
-	if objects, ok := q.objects[pkg.Name]; ok {
-		apiBundle.CsvJson = objects[b.Name].csv
-		apiBundle.Object = objects[b.Name].objects
-	}
 
 	// unset Replaces and Skips (sqlite query does not populate these fields)
 	apiBundle.Replaces = ""
@@ -186,11 +110,6 @@ func (q Querier) GetBundleForChannel(_ context.Context, pkgName string, channelN
 	apiBundle, err := api.ConvertModelBundleToAPIBundle(*head)
 	if err != nil {
 		return nil, fmt.Errorf("convert bundle %q: %v", head.Name, err)
-	}
-
-	if objects, ok := q.objects[pkg.Name]; ok {
-		apiBundle.CsvJson = objects[head.Name].csv
-		apiBundle.Object = objects[head.Name].objects
 	}
 
 	// unset Replaces and Skips (sqlite query does not populate these fields)
@@ -226,17 +145,11 @@ func (q Querier) GetBundleThatReplaces(_ context.Context, name, pkgName, channel
 		return nil, fmt.Errorf("package %q, channel %q not found", pkgName, channelName)
 	}
 
-	objects := q.objects[pkg.Name]
 	for _, b := range ch.Bundles {
 		if bundleReplaces(*b, name) {
 			apiBundle, err := api.ConvertModelBundleToAPIBundle(*b)
 			if err != nil {
 				return nil, fmt.Errorf("convert bundle %q: %v", b.Name, err)
-			}
-
-			if objects != nil {
-				apiBundle.CsvJson = objects[b.Name].csv
-				apiBundle.Object = objects[b.Name].objects
 			}
 
 			// unset Replaces and Skips (sqlite query does not populate these fields)
@@ -401,38 +314,4 @@ func channelEntriesForBundle(b model.Bundle, ignoreChannel bool) []*ChannelEntry
 		}
 	}
 	return entries
-}
-
-func readBundleDirectory(dir string) (*bundleObjects, error) {
-	infos, err := ioutil.ReadDir(dir)
-	if err != nil {
-		return &bundleObjects{}, nil
-	}
-
-	bObjs := bundleObjects{}
-	for _, info := range infos {
-		if info.IsDir() {
-			continue
-		}
-		filedata, err := ioutil.ReadFile(path.Join(dir, info.Name()))
-		if err != nil {
-			continue
-		}
-
-		u := unstructured.Unstructured{}
-		if err := yaml.Unmarshal(filedata, &u); err != nil {
-			continue
-		}
-
-		bObjs.objects = append(bObjs.objects, string(filedata))
-		if u.GetKind() != operators.ClusterServiceVersionKind {
-			continue
-		}
-
-		if len(bObjs.csv) > 0 {
-			return nil, fmt.Errorf("more than one ClusterServiceVersion is found in bundle")
-		}
-		bObjs.csv = string(filedata)
-	}
-	return &bObjs, nil
 }

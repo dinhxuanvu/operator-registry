@@ -192,6 +192,12 @@ type Bundle struct {
 	Skips         []string
 	Properties    []property.Property
 	RelatedImages []RelatedImage
+
+	// These fields are present so that we can continue serving
+	// the GRPC API the way packageserver expects us to in a
+	// backwards-compatible way.
+	Objects []string
+	CsvJSON string
 }
 
 func (b *Bundle) Validate() error {

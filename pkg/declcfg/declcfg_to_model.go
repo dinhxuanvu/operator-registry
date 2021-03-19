@@ -63,6 +63,8 @@ func ConvertToModel(cfg DeclarativeConfig) (model.Model, error) {
 				Skips:         skipsToStrings(props.Skips),
 				Properties:    b.Properties,
 				RelatedImages: relatedImagesToModelRelatedImages(b.RelatedImages),
+				CsvJSON:       b.CsvJSON,
+				Objects:       b.Objects,
 			}
 		}
 		if mpkg.DefaultChannel == nil {
