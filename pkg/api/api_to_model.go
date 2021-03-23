@@ -13,14 +13,21 @@ func ConvertAPIBundleToModelBundle(b *Bundle) (*model.Bundle, error) {
 	if err != nil {
 		return nil, fmt.Errorf("convert properties: %v", err)
 	}
+
+	relatedImages, err := getRelatedImages(b.CsvJson)
+	if err != nil {
+		return nil, fmt.Errorf("get related iamges: %v", err)
+	}
+
 	return &model.Bundle{
-		Name:       b.CsvName,
-		Image:      b.BundlePath,
-		Replaces:   b.Replaces,
-		Skips:      b.Skips,
-		CsvJSON:    b.CsvJson,
-		Objects:    b.Object,
-		Properties: bundleProps,
+		Name:          b.CsvName,
+		Image:         b.BundlePath,
+		Replaces:      b.Replaces,
+		Skips:         b.Skips,
+		CsvJSON:       b.CsvJson,
+		Objects:       b.Object,
+		Properties:    bundleProps,
+		RelatedImages: relatedImages,
 	}, nil
 }
 
@@ -117,4 +124,27 @@ func convertAPIBundleToModelProperties(b *Bundle) ([]property.Property, error) {
 	}
 
 	return out, nil
+}
+
+func getRelatedImages(csvJSON string) ([]model.RelatedImage, error) {
+	if len(csvJSON) == 0 {
+		return nil, nil
+	}
+	type csv struct {
+		Spec struct {
+			RelatedImages []struct {
+				Name  string `json:"name"`
+				Image string `json:"image"`
+			} `json:"relatedImages"`
+		} `json:"spec"`
+	}
+	c := csv{}
+	if err := json.Unmarshal([]byte(csvJSON), &c); err != nil {
+		return nil, fmt.Errorf("unmarshal csv: %v", err)
+	}
+	relatedImages := []model.RelatedImage{}
+	for _, ri := range c.Spec.RelatedImages {
+		relatedImages = append(relatedImages, model.RelatedImage(ri))
+	}
+	return relatedImages, nil
 }

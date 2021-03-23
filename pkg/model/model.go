@@ -227,11 +227,15 @@ func (b *Bundle) Validate() error {
 			return fmt.Errorf("skip[%d] is empty", i)
 		}
 	}
-	for i, relatedImage := range b.RelatedImages {
-		if err := relatedImage.Validate(); err != nil {
-			return fmt.Errorf("invalid related image[%d]: %v", i, err)
-		}
-	}
+	// TODO(joelanford): Validate related images? It looks like some
+	//   CSVs in production databases use incorrect fields ([name,value]
+	//   instead of [name,image]), which results in empty image values.
+	//   Example is in redhat-operators: 3scale-operator.v0.5.5
+	//for i, relatedImage := range b.RelatedImages {
+	//	if err := relatedImage.Validate(); err != nil {
+	//		return fmt.Errorf("invalid related image[%d]: %v", i, err)
+	//	}
+	//}
 
 	if err := property.ValidateBackCompat(*props); err != nil {
 		return err

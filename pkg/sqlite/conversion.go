@@ -104,7 +104,7 @@ func populateModelChannels(ctx context.Context, pkgs model.Model, q *SQLQuerier)
 
 		mbundle, err := api.ConvertAPIBundleToModelBundle(bundle)
 		if err != nil {
-			fmt.Errorf("convert bundle %q: %v", bundle.CsvName, err)
+			return fmt.Errorf("convert bundle %q: %v", bundle.CsvName, err)
 		}
 		mbundle.Package = pkg
 		mbundle.Channel = pkgChannel
