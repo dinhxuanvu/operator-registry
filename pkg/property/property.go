@@ -54,7 +54,10 @@ type GVKProvided struct {
 	Group   string `json:"group"`
 	Kind    string `json:"kind"`
 	Version string `json:"version"`
-	Plural  string `json:"plural,omitempty"`
+
+	// TODO(joelanford): It's possible we can get rid of plural fields.
+	//   Check olm operator to see if it expects plural anywhere.
+	Plural string `json:"plural,omitempty"`
 }
 
 type GVKRequired struct {

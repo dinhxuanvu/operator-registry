@@ -135,6 +135,7 @@ func (q Querier) GetChannelEntriesThatReplace(_ context.Context, name string) ([
 }
 
 // TODO(joelanford): What if multiple bundles replace this one?
+//    Don't worry about this. Not used anymore.
 func (q Querier) GetBundleThatReplaces(_ context.Context, name, pkgName, channelName string) (*api.Bundle, error) {
 	pkg, ok := q.pkgs[pkgName]
 	if !ok {
@@ -176,6 +177,8 @@ func (q Querier) GetChannelEntriesThatProvide(_ context.Context, group, version,
 					//   invalid entries (i.e. where bundle `Replaces` isn't actually
 					//   in channel `ChannelName`). Is that a bug? For now, this mimics
 					//   the sqlite server and returns seemingly invalid channel entries.
+					//      Don't worry about this. Not used anymore.
+
 					entries = append(entries, channelEntriesForBundle(*b, true)...)
 				}
 			}

@@ -21,6 +21,8 @@ func LoadDir(configDir string) (*DeclarativeConfig, error) {
 	return loadFS(configDir, w)
 }
 
+// TODO(joelanford): Delete this since we longer are worried about implicit
+//   migrations and preserving files vs directories.
 func LoadTar(tarFile string) (*DeclarativeConfig, error) {
 	f, err := os.Open(tarFile)
 	if err != nil {
