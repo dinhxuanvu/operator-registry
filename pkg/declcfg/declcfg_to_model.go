@@ -96,7 +96,7 @@ func skipsToStrings(in []property.Skips) []string {
 	return out
 }
 
-func relatedImagesToModelRelatedImages(in []relatedImage) []model.RelatedImage {
+func relatedImagesToModelRelatedImages(in []RelatedImage) []model.RelatedImage {
 	var out []model.RelatedImage
 	for _, p := range in {
 		out = append(out, model.RelatedImage{

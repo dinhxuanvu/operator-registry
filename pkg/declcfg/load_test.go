@@ -68,7 +68,7 @@ func TestLoadFile(t *testing.T) {
 				require.NotNil(t, cfg)
 				assert.Equal(t, len(cfg.Packages), s.expectNumPackages, "unexpected package count")
 				assert.Equal(t, len(cfg.Bundles), s.expectNumBundles, "unexpected bundle count")
-				assert.Equal(t, len(cfg.others), s.expectNumOthers, "unexpected others count")
+				assert.Equal(t, len(cfg.Others), s.expectNumOthers, "unexpected others count")
 			}
 		})
 	}
@@ -112,7 +112,7 @@ func TestLoadDir(t *testing.T) {
 				require.NotNil(t, cfg)
 				assert.Equal(t, len(cfg.Packages), s.expectNumPackages, "unexpected package count")
 				assert.Equal(t, len(cfg.Bundles), s.expectNumBundles, "unexpected bundle count")
-				assert.Equal(t, len(cfg.others), s.expectNumOthers, "unexpected others count")
+				assert.Equal(t, len(cfg.Others), s.expectNumOthers, "unexpected others count")
 			}
 		})
 	}

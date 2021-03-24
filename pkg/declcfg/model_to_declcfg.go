@@ -12,14 +12,14 @@ func ConvertFromModel(mpkgs model.Model) DeclarativeConfig {
 	for _, mpkg := range mpkgs {
 		bundles := traverseModelChannels(*mpkg)
 
-		var i *icon
+		var i *Icon
 		if mpkg.Icon != nil {
-			i = &icon{
+			i = &Icon{
 				Data:      mpkg.Icon.Data,
 				MediaType: mpkg.Icon.MediaType,
 			}
 		}
-		cfg.Packages = append(cfg.Packages, pkg{
+		cfg.Packages = append(cfg.Packages, Package{
 			Schema:         schemaPackage,
 			Name:           mpkg.Name,
 			DefaultChannel: mpkg.DefaultChannel.Name,
@@ -39,14 +39,14 @@ func ConvertFromModel(mpkgs model.Model) DeclarativeConfig {
 	return cfg
 }
 
-func traverseModelChannels(mpkg model.Package) []bundle {
-	bundles := map[string]*bundle{}
+func traverseModelChannels(mpkg model.Package) []Bundle {
+	bundles := map[string]*Bundle{}
 
 	for _, ch := range mpkg.Channels {
 		for _, chb := range ch.Bundles {
 			b, ok := bundles[chb.Name]
 			if !ok {
-				b = &bundle{
+				b = &Bundle{
 					Schema:        schemaBundle,
 					Name:          chb.Name,
 					Package:       chb.Package.Name,
@@ -61,7 +61,7 @@ func traverseModelChannels(mpkg model.Package) []bundle {
 		}
 	}
 
-	var out []bundle
+	var out []Bundle
 	for _, b := range bundles {
 		b.Properties = property.Deduplicate(b.Properties)
 		out = append(out, *b)
@@ -69,10 +69,10 @@ func traverseModelChannels(mpkg model.Package) []bundle {
 	return out
 }
 
-func modelRelatedImagesToRelatedImages(relatedImages []model.RelatedImage) []relatedImage {
-	var out []relatedImage
+func modelRelatedImagesToRelatedImages(relatedImages []model.RelatedImage) []RelatedImage {
+	var out []RelatedImage
 	for _, ri := range relatedImages {
-		out = append(out, relatedImage{
+		out = append(out, RelatedImage{
 			Name:  ri.Name,
 			Image: ri.Image,
 		})

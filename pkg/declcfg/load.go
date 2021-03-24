@@ -68,7 +68,7 @@ func loadFS(root string, w fsWalker) (*DeclarativeConfig, error) {
 			}
 			cfg.Packages = append(cfg.Packages, fileCfg.Packages...)
 			cfg.Bundles = append(cfg.Bundles, fileCfg.Bundles...)
-			cfg.others = append(cfg.others, fileCfg.others...)
+			cfg.Others = append(cfg.Others, fileCfg.Others...)
 		}
 		return nil
 	}); err != nil {
@@ -109,26 +109,26 @@ func readJSON(r io.Reader) (*DeclarativeConfig, error) {
 			return nil, fmt.Errorf("parse error at offset %d: %v", dec.InputOffset(), err)
 		}
 
-		var in meta
+		var in Meta
 		if err := json.Unmarshal(*doc, &in); err != nil {
 			return nil, fmt.Errorf("parse meta object at offset %d: %v", dec.InputOffset(), err)
 		}
 
-		switch in.Schema() {
+		switch in.Schema {
 		case schemaPackage:
-			var p pkg
+			var p Package
 			if err := json.Unmarshal(*doc, &p); err != nil {
 				return nil, fmt.Errorf("parse package at offset %d: %v", dec.InputOffset(), err)
 			}
 			cfg.Packages = append(cfg.Packages, p)
 		case schemaBundle:
-			var b bundle
+			var b Bundle
 			if err := json.Unmarshal(*doc, &b); err != nil {
 				return nil, fmt.Errorf("parse bundle at offset %d: %v", dec.InputOffset(), err)
 			}
 			cfg.Bundles = append(cfg.Bundles, b)
 		default:
-			cfg.others = append(cfg.others, in)
+			cfg.Others = append(cfg.Others, in)
 		}
 	}
 	return cfg, nil

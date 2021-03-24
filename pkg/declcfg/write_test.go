@@ -99,26 +99,26 @@ func TestWriteDir(t *testing.T) {
 				require.NoError(t, err)
 				assert.Len(t, anakin.Packages, 1)
 				assert.Len(t, anakin.Bundles, 3)
-				assert.Len(t, anakin.others, 1)
+				assert.Len(t, anakin.Others, 1)
 
 				bobaFett, err := loadFile(filepath.Join(testDir, "boba-fett.json"))
 				require.NoError(t, err)
 				assert.Len(t, bobaFett.Packages, 1)
 				assert.Len(t, bobaFett.Bundles, 2)
-				assert.Len(t, bobaFett.others, 1)
+				assert.Len(t, bobaFett.Others, 1)
 
 				globals, err := loadFile(filepath.Join(testDir, fmt.Sprintf("%s.json", globalName)))
 				require.NoError(t, err)
 				assert.Len(t, globals.Packages, 0)
 				assert.Len(t, globals.Bundles, 0)
-				assert.Len(t, globals.others, 2)
+				assert.Len(t, globals.Others, 2)
 
 				all, err := LoadDir(testDir)
 				require.NoError(t, err)
 
 				assert.Len(t, all.Packages, 2)
 				assert.Len(t, all.Bundles, 5)
-				assert.Len(t, all.others, 4)
+				assert.Len(t, all.Others, 4)
 			}
 		})
 	}
@@ -167,13 +167,13 @@ func equalsDeclarativeConfig(t *testing.T, expected, actual DeclarativeConfig) {
 
 	assert.ElementsMatch(t, expected.Packages, actual.Packages)
 	assert.ElementsMatch(t, expected.Bundles, actual.Bundles)
-	assert.ElementsMatch(t, expected.others, actual.others)
+	assert.ElementsMatch(t, expected.Others, actual.Others)
 
 	// In case new fields are added to the DeclarativeConfig struct in the future,
 	// test that the rest is Equal.
 	expected.Packages, actual.Packages = nil, nil
 	expected.Bundles, actual.Bundles = nil, nil
-	expected.others, actual.others = nil, nil
+	expected.Others, actual.Others = nil, nil
 	assert.Equal(t, expected, actual)
 }
 
@@ -184,9 +184,9 @@ func removeJSONWhitespace(cfg *DeclarativeConfig) {
 			cfg.Bundles[ib].Properties[ip].Value = []byte(replacer.Replace(string(cfg.Bundles[ib].Properties[ip].Value)))
 		}
 	}
-	for io := range cfg.others {
-		for _, v := range cfg.others[io].data {
-			cfg.others[io].data = []byte(replacer.Replace(string(v)))
+	for io := range cfg.Others {
+		for _, v := range cfg.Others[io].Blob {
+			cfg.Others[io].Blob = []byte(replacer.Replace(string(v)))
 		}
 	}
 }

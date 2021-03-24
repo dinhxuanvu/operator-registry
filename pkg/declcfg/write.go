@@ -118,13 +118,13 @@ func (w tarWriter) WriteFile(path string, data []byte, mode os.FileMode) error {
 }
 
 func writeToFS(cfg DeclarativeConfig, w fsWriter, rootDir string) error {
-	bundlesByPackage := map[string][]bundle{}
+	bundlesByPackage := map[string][]Bundle{}
 	for _, b := range cfg.Bundles {
 		bundlesByPackage[b.Package] = append(bundlesByPackage[b.Package], b)
 	}
-	othersByPackage := map[string][]meta{}
-	for _, o := range cfg.others {
-		pkgName := o.Package()
+	othersByPackage := map[string][]Meta{}
+	for _, o := range cfg.Others {
+		pkgName := o.Package
 		if pkgName == "" {
 			pkgName = globalName
 		}
@@ -137,9 +137,9 @@ func writeToFS(cfg DeclarativeConfig, w fsWriter, rootDir string) error {
 
 	for _, p := range cfg.Packages {
 		fcfg := DeclarativeConfig{
-			Packages: []pkg{p},
+			Packages: []Package{p},
 			Bundles:  bundlesByPackage[p.Name],
-			others:   othersByPackage[p.Name],
+			Others:   othersByPackage[p.Name],
 		}
 		filename := filepath.Join(rootDir, fmt.Sprintf("%s.json", p.Name))
 		if err := writeFile(fcfg, w, filename); err != nil {
@@ -168,7 +168,7 @@ func writeToFS(cfg DeclarativeConfig, w fsWriter, rootDir string) error {
 
 	if globals, ok := othersByPackage[globalName]; ok {
 		gcfg := DeclarativeConfig{
-			others: globals,
+			Others: globals,
 		}
 		filename := filepath.Join(rootDir, fmt.Sprintf("%s.json", globalName))
 		if err := writeFile(gcfg, w, filename); err != nil {
@@ -194,7 +194,7 @@ func writeJSON(cfg DeclarativeConfig, w io.Writer) error {
 	enc.SetIndent("", "    ")
 	enc.SetEscapeHTML(false)
 
-	bundlesByPackage := map[string][]bundle{}
+	bundlesByPackage := map[string][]Bundle{}
 	for _, b := range cfg.Bundles {
 		pkgName := b.Package
 		bundlesByPackage[pkgName] = append(bundlesByPackage[pkgName], b)
@@ -210,7 +210,7 @@ func writeJSON(cfg DeclarativeConfig, w io.Writer) error {
 			}
 		}
 	}
-	for _, o := range cfg.others {
+	for _, o := range cfg.Others {
 		if err := enc.Encode(o); err != nil {
 			return err
 		}

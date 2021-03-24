@@ -19,40 +19,40 @@ func TestConvertToModel(t *testing.T) {
 			name:      "Error/BundleMissingPackageName",
 			assertion: require.Error,
 			cfg: DeclarativeConfig{
-				Packages: []pkg{newTestPackage("foo", "alpha", svgSmallCircle)},
-				Bundles:  []bundle{{}},
+				Packages: []Package{newTestPackage("foo", "alpha", svgSmallCircle)},
+				Bundles:  []Bundle{{}},
 			},
 		},
 		{
 			name:      "Error/BundleUnknownPackage",
 			assertion: require.Error,
 			cfg: DeclarativeConfig{
-				Packages: []pkg{newTestPackage("foo", "alpha", svgSmallCircle)},
-				Bundles:  []bundle{newTestBundle("bar", "0.1.0")},
+				Packages: []Package{newTestPackage("foo", "alpha", svgSmallCircle)},
+				Bundles:  []Bundle{newTestBundle("bar", "0.1.0")},
 			},
 		},
 		{
 			name:      "Error/FailedModelValidation",
 			assertion: require.Error,
 			cfg: DeclarativeConfig{
-				Packages: []pkg{newTestPackage("foo", "alpha", svgSmallCircle)},
-				Bundles:  []bundle{newTestBundle("foo", "0.1.0")},
+				Packages: []Package{newTestPackage("foo", "alpha", svgSmallCircle)},
+				Bundles:  []Bundle{newTestBundle("foo", "0.1.0")},
 			},
 		},
 		{
 			name:      "Error/InvalidProperties",
 			assertion: require.Error,
 			cfg: DeclarativeConfig{
-				Packages: []pkg{newTestPackage("foo", "alpha", svgSmallCircle)},
-				Bundles:  []bundle{newTestBundle("foo", "0.1.0", withChannel("alpha", "1"), withChannel("alpha", "2"))},
+				Packages: []Package{newTestPackage("foo", "alpha", svgSmallCircle)},
+				Bundles:  []Bundle{newTestBundle("foo", "0.1.0", withChannel("alpha", "1"), withChannel("alpha", "2"))},
 			},
 		},
 		{
 			name:      "Success/ValidModel",
 			assertion: require.NoError,
 			cfg: DeclarativeConfig{
-				Packages: []pkg{newTestPackage("foo", "alpha", svgSmallCircle)},
-				Bundles:  []bundle{newTestBundle("foo", "0.1.0", withChannel("alpha", ""))},
+				Packages: []Package{newTestPackage("foo", "alpha", svgSmallCircle)},
+				Bundles:  []Bundle{newTestBundle("foo", "0.1.0", withChannel("alpha", ""))},
 			},
 		},
 	}
@@ -77,5 +77,5 @@ func TestConvertToModelRoundtrip(t *testing.T) {
 
 	assert.Equal(t, expected.Packages, actual.Packages)
 	assert.Equal(t, expected.Bundles, actual.Bundles)
-	assert.Len(t, actual.others, 0, "expected unrecognized schemas not to make the roundtrip")
+	assert.Len(t, actual.Others, 0, "expected unrecognized schemas not to make the roundtrip")
 }

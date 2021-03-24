@@ -28,17 +28,17 @@ func buildValidDeclarativeConfig(includeUnrecognized bool) DeclarativeConfig {
 		withChannel("mando", testBundleName("boba-fett", "1.0.0")),
 	)
 
-	var others []meta
+	var others []Meta
 	if includeUnrecognized {
-		others = []meta{
-			{schema: "custom.1", data: json.RawMessage(`{"schema": "custom.1"}`)},
-			{schema: "custom.2", data: json.RawMessage(`{"schema": "custom.2"}`)},
-			{schema: "custom.3", pkgName: "anakin", data: json.RawMessage(`{
+		others = []Meta{
+			{Schema: "custom.1", Blob: json.RawMessage(`{"schema": "custom.1"}`)},
+			{Schema: "custom.2", Blob: json.RawMessage(`{"schema": "custom.2"}`)},
+			{Schema: "custom.3", Package: "anakin", Blob: json.RawMessage(`{
 				"schema": "custom.3",
 				"package": "anakin",
 				"myField": "foobar"
 			}`)},
-			{schema: "custom.3", pkgName: "boba-fett", data: json.RawMessage(`{
+			{Schema: "custom.3", Package: "boba-fett", Blob: json.RawMessage(`{
 				"schema": "custom.3",
 				"package": "boba-fett",
 				"myField": "foobar"
@@ -47,34 +47,34 @@ func buildValidDeclarativeConfig(includeUnrecognized bool) DeclarativeConfig {
 	}
 
 	return DeclarativeConfig{
-		Packages: []pkg{
+		Packages: []Package{
 			newTestPackage("anakin", "dark", svgSmallCircle),
 			newTestPackage("boba-fett", "mando", svgBigCircle),
 		},
-		Bundles: []bundle{
+		Bundles: []Bundle{
 			a001, a010, a011,
 			b1, b2,
 		},
-		others: others,
+		Others: others,
 	}
 }
 
-type bundleOpt func(*bundle)
+type bundleOpt func(*Bundle)
 
-func withChannel(name, replaces string) func(*bundle) {
-	return func(b *bundle) {
+func withChannel(name, replaces string) func(*Bundle) {
+	return func(b *Bundle) {
 		b.Properties = append(b.Properties, property.MustBuildChannel(name, replaces))
 	}
 }
 
-func withSkips(name string) func(*bundle) {
-	return func(b *bundle) {
+func withSkips(name string) func(*Bundle) {
+	return func(b *Bundle) {
 		b.Properties = append(b.Properties, property.MustBuildSkips(name))
 	}
 }
 
-func newTestBundle(packageName, version string, opts ...bundleOpt) bundle {
-	b := bundle{
+func newTestBundle(packageName, version string, opts ...bundleOpt) Bundle {
+	b := Bundle{
 		Schema:  schemaBundle,
 		Name:    testBundleName(packageName, version),
 		Package: packageName,
@@ -83,7 +83,7 @@ func newTestBundle(packageName, version string, opts ...bundleOpt) bundle {
 			property.MustBuildPackage(packageName, version),
 			property.MustBuildPackageProvided(packageName, version),
 		},
-		RelatedImages: []relatedImage{
+		RelatedImages: []RelatedImage{
 			{
 				Name:  "bundle",
 				Image: testBundleImage(packageName, version),
@@ -106,12 +106,12 @@ const (
 	svgBigCircle   = `<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="50"/></svg>`
 )
 
-func newTestPackage(packageName, defaultChannel, svgData string) pkg {
-	p := pkg{
+func newTestPackage(packageName, defaultChannel, svgData string) Package {
+	p := Package{
 		Schema:         schemaPackage,
 		Name:           packageName,
 		DefaultChannel: defaultChannel,
-		Icon:           &icon{Data: []byte(svgData), MediaType: "image/svg+xml"},
+		Icon:           &Icon{Data: []byte(svgData), MediaType: "image/svg+xml"},
 		Description:    testPackageDescription(packageName),
 	}
 	return p

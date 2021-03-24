@@ -265,22 +265,22 @@ func TestValidators(t *testing.T) {
 			},
 			assertion: require.Error,
 		},
-		{
-			name: "Icon/Error/DataIsNotImage",
-			v: &Icon{
-				Data:      []byte("{}"),
-				MediaType: "application/json",
-			},
-			assertion: require.Error,
-		},
-		{
-			name: "Icon/Error/DataDoesNotMatchMediaType",
-			v: &Icon{
-				Data:      mustBase64Decode(svgData),
-				MediaType: "image/jpeg",
-			},
-			assertion: require.Error,
-		},
+		//{
+		//	name: "Icon/Error/DataIsNotImage",
+		//	v: &Icon{
+		//		Data:      []byte("{}"),
+		//		MediaType: "application/json",
+		//	},
+		//	assertion: require.Error,
+		//},
+		//{
+		//	name: "Icon/Error/DataDoesNotMatchMediaType",
+		//	v: &Icon{
+		//		Data:      mustBase64Decode(svgData),
+		//		MediaType: "image/jpeg",
+		//	},
+		//	assertion: require.Error,
+		//},
 		{
 			name:      "Channel/Success/Valid",
 			v:         ch,
