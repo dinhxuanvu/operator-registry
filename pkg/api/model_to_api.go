@@ -24,7 +24,7 @@ func ConvertModelBundleToAPIBundle(b model.Bundle) (*Bundle, error) {
 		BundlePath:   b.Image,
 		ProvidedApis: gvksProvidedtoAPIGVKs(props.GVKsProvided),
 		RequiredApis: gvksRequirestoAPIGVKs(props.GVKsRequired),
-		Version:      props.PackagesProvided[0].Version,
+		Version:      props.Packages[0].Version,
 		SkipRange:    skipRange,
 		Dependencies: convertModelPropertiesToAPIDependencies(b.Properties),
 		Properties:   convertModelPropertiesToAPIProperties(b.Properties),
@@ -41,8 +41,8 @@ func parseProperties(in []property.Property) (*property.Properties, error) {
 		return nil, err
 	}
 
-	if len(props.PackagesProvided) != 1 {
-		return nil, fmt.Errorf("expected exactly 1 property of type %q, found %d", property.TypePackageProvided, len(props.PackagesProvided))
+	if len(props.Packages) != 1 {
+		return nil, fmt.Errorf("expected exactly 1 property of type %q, found %d", property.TypePackage, len(props.Packages))
 	}
 
 	if len(props.SkipRanges) > 1 {

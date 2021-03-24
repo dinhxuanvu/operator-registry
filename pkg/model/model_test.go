@@ -367,7 +367,6 @@ func TestValidators(t *testing.T) {
 				Skips:    []string{"anakin.v0.0.2"},
 				Properties: []property.Property{
 					property.MustBuildPackage("anakin", "0.1.0"),
-					property.MustBuildPackageProvided("anakin", "0.1.0"),
 					property.MustBuildGVK("skywalker.me", "v1alpha1", "PodRacer", ""),
 					property.MustBuildGVKProvided("skywalker.me", "v1alpha1", "PodRacer", ""),
 					property.MustBuildSkips("anakin.v0.0.2"),
@@ -478,7 +477,6 @@ func TestValidators(t *testing.T) {
 				Replaces: "anakin.v0.0.1",
 				Skips:    []string{"anakin.v0.0.2"},
 				Properties: []property.Property{
-					property.MustBuildPackageProvided("anakin", "0.1.0"),
 					property.MustBuildSkips("anakin.v0.0.2"),
 					property.MustBuildChannel("light", "anakin.v0.0.1"),
 					property.MustBuildChannel("dark", "anakin.v0.0.1"),
@@ -497,7 +495,6 @@ func TestValidators(t *testing.T) {
 				Skips:    []string{"anakin.v0.0.2"},
 				Properties: []property.Property{
 					property.MustBuildPackage("anakin", "0.1.0"),
-					property.MustBuildPackageProvided("anakin", "0.1.0"),
 					property.MustBuildGVK("skywalker.me", "v1alpha1", "PodRacer", ""),
 					property.MustBuildSkips("anakin.v0.0.2"),
 					property.MustBuildChannel("light", "anakin.v0.0.1"),
@@ -517,7 +514,6 @@ func TestValidators(t *testing.T) {
 				Skips:    []string{"anakin.v0.0.2"},
 				Properties: []property.Property{
 					property.MustBuildPackage("anakin", "0.1.0"),
-					property.MustBuildPackageProvided("anakin", "0.1.0"),
 					property.MustBuildGVKProvided("skywalker.me", "v1alpha1", "PodRacer", ""),
 					property.MustBuildSkips("anakin.v0.0.2"),
 					property.MustBuildChannel("light", "anakin.v0.0.1"),
@@ -564,7 +560,6 @@ func makePackageChannelBundle() (*Package, *Channel) {
 		Image: "anakin-operator:v0.0.1",
 		Properties: []property.Property{
 			property.MustBuildPackage("anakin", "0.0.1"),
-			property.MustBuildPackageProvided("anakin", "0.0.1"),
 			property.MustBuildGVK("skywalker.me", "v1alpha1", "PodRacer", ""),
 			property.MustBuildGVKProvided("skywalker.me", "v1alpha1", "PodRacer", ""),
 		},
@@ -575,7 +570,6 @@ func makePackageChannelBundle() (*Package, *Channel) {
 		Replaces: "anakin.v0.0.1",
 		Properties: []property.Property{
 			property.MustBuildPackage("anakin", "0.0.2"),
-			property.MustBuildPackageProvided("anakin", "0.0.2"),
 			property.MustBuildGVK("skywalker.me", "v1alpha1", "PodRacer", ""),
 			property.MustBuildGVKProvided("skywalker.me", "v1alpha1", "PodRacer", ""),
 		},

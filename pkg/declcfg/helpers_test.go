@@ -82,7 +82,6 @@ func newTestBundle(packageName, version string, opts ...bundleOpt) Bundle {
 		Image:   testBundleImage(packageName, version),
 		Properties: []property.Property{
 			property.MustBuildPackage(packageName, version),
-			property.MustBuildPackageProvided(packageName, version),
 		},
 		RelatedImages: []RelatedImage{
 			{
@@ -158,7 +157,6 @@ func buildAnakinPkgModel() *model.Package {
 	for version, channels := range versions {
 		props := []property.Property{
 			property.MustBuildPackage(pkgName, version),
-			property.MustBuildPackageProvided(pkgName, version),
 		}
 		csvJson := fmt.Sprintf(`{"kind": "ClusterServiceVersion", "apiVersion": "operators.coreos.com/v1alpha1", "metadata":{"name":%q}}`, testBundleName(pkgName, version))
 		for _, channel := range channels {
@@ -223,7 +221,6 @@ func buildBobaFettPkgModel() *model.Package {
 	for version, channels := range versions {
 		props := []property.Property{
 			property.MustBuildPackage(pkgName, version),
-			property.MustBuildPackageProvided(pkgName, version),
 		}
 		csvJson := fmt.Sprintf(`{"kind": "ClusterServiceVersion", "apiVersion": "operators.coreos.com/v1alpha1", "metadata":{"name":%q}}`, testBundleName(pkgName, version))
 		for _, channel := range channels {

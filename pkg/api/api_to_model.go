@@ -60,10 +60,6 @@ func convertAPIBundleToModelProperties(b *Bundle) ([]property.Property, error) {
 		case property.TypePackage:
 			foundPackageProperty = true
 			out = append(out, property.Property{
-				Type:  property.TypePackageProvided,
-				Value: json.RawMessage(p.Value),
-			})
-			out = append(out, property.Property{
 				Type:  property.TypePackage,
 				Value: json.RawMessage(p.Value),
 			})
@@ -94,7 +90,6 @@ func convertAPIBundleToModelProperties(b *Bundle) ([]property.Property, error) {
 
 	if !foundPackageProperty {
 		out = append(out, property.MustBuildPackage(b.PackageName, b.Version))
-		out = append(out, property.MustBuildPackageProvided(b.PackageName, b.Version))
 	}
 
 	for _, p := range b.ProvidedApis {

@@ -11,7 +11,6 @@ func init() {
 
 	scheme = map[reflect.Type]string{
 		reflect.TypeOf(&Package{}):         TypePackage,
-		reflect.TypeOf(&PackageProvided{}): TypePackageProvided,
 		reflect.TypeOf(&PackageRequired{}): TypePackageRequired,
 		reflect.TypeOf(&Channel{}):         TypeChannel,
 		reflect.TypeOf(&GVK{}):             TypeGVK,

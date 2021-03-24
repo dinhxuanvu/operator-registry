@@ -33,11 +33,6 @@ type Package struct {
 	Version     string `json:"version"`
 }
 
-type PackageProvided struct {
-	PackageName string `json:"packageName"`
-	Version     string `json:"version"`
-}
-
 type PackageRequired struct {
 	PackageName  string `json:"packageName"`
 	VersionRange string `json:"versionRange"`
@@ -54,12 +49,14 @@ type GVK struct {
 	Version string `json:"version"`
 	Plural  string `json:"plural,omitempty"`
 }
+
 type GVKProvided struct {
 	Group   string `json:"group"`
 	Kind    string `json:"kind"`
 	Version string `json:"version"`
 	Plural  string `json:"plural,omitempty"`
 }
+
 type GVKRequired struct {
 	Group   string `json:"group"`
 	Kind    string `json:"kind"`
@@ -72,7 +69,6 @@ type SkipRange string
 
 type Properties struct {
 	Packages         []Package
-	PackagesProvided []PackageProvided
 	PackagesRequired []PackageRequired
 	Channels         []Channel
 	GVKs             []GVK
@@ -87,7 +83,6 @@ type Properties struct {
 
 const (
 	TypePackage         = "olm.package"
-	TypePackageProvided = "olm.package.provided"
 	TypePackageRequired = "olm.package.required"
 	TypeChannel         = "olm.channel"
 	TypeGVK             = "olm.gvk"
@@ -108,12 +103,6 @@ func Parse(in []Property) (*Properties, error) {
 				return nil, ParseError{Idx: i, Typ: prop.Type, Err: err}
 			}
 			out.Packages = append(out.Packages, p)
-		case TypePackageProvided:
-			var p PackageProvided
-			if err := json.Unmarshal(prop.Value, &p); err != nil {
-				return nil, ParseError{Idx: i, Typ: prop.Type, Err: err}
-			}
-			out.PackagesProvided = append(out.PackagesProvided, p)
 		case TypePackageRequired:
 			var p PackageRequired
 			if err := json.Unmarshal(prop.Value, &p); err != nil {
@@ -187,21 +176,13 @@ func Deduplicate(in []Property) []Property {
 }
 
 func ValidateBackCompat(in Properties) error {
-	if len(in.PackagesProvided) != 1 {
-		return fmt.Errorf("property type %q is required", TypePackageProvided)
+	if len(in.Packages) != 1 {
+		return fmt.Errorf("property type %q is required", TypePackage)
 	}
 
-	packageProps := map[Package]struct{}{}
-	packageProvidedProps := map[PackageProvided]struct{}{}
 	gvkProps := map[GVK]struct{}{}
 	gvkProvidedProps := map[GVKProvided]struct{}{}
 
-	for _, p := range in.Packages {
-		packageProps[p] = struct{}{}
-	}
-	for _, p := range in.PackagesProvided {
-		packageProvidedProps[p] = struct{}{}
-	}
 	for _, p := range in.GVKs {
 		// Ignore plural field for when searching for matches.
 		p.Plural = ""
@@ -213,16 +194,6 @@ func ValidateBackCompat(in Properties) error {
 		gvkProvidedProps[p] = struct{}{}
 	}
 
-	for k := range packageProps {
-		if _, ok := packageProvidedProps[PackageProvided(k)]; !ok {
-			return MatchMissingError{TypePackage, k, TypePackageProvided}
-		}
-	}
-	for k := range packageProvidedProps {
-		if _, ok := packageProps[Package(k)]; !ok {
-			return MatchMissingError{TypePackageProvided, k, TypePackage}
-		}
-	}
 	for k := range gvkProps {
 		if _, ok := gvkProvidedProps[GVKProvided(k)]; !ok {
 			return MatchMissingError{TypeGVK, k, TypeGVKProvided}
@@ -293,9 +264,6 @@ func newJSONEncoder(w io.Writer) json.Encoder {
 
 func MustBuildPackage(name, version string) Property {
 	return MustBuild(&Package{PackageName: name, Version: version})
-}
-func MustBuildPackageProvided(name, version string) Property {
-	return MustBuild(&PackageProvided{name, version})
 }
 func MustBuildPackageRequired(name, versionRange string) Property {
 	return MustBuild(&PackageRequired{name, versionRange})
