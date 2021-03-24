@@ -96,8 +96,11 @@ func (i *Icon) Validate() error {
 		return errors.New("icon mediatype must be set if icon is defined")
 	}
 	// TODO(joelanford): Should we detect the media type of the data and
-	//   compare it to the mediatype listed in the icon field?
-	return i.validateData()
+	//   compare it to the mediatype listed in the icon field? Currently,
+	//   some production index databases are failing this test, so I'll
+	//   comment this out for now.
+	//return i.validateData()
+	return nil
 }
 
 func (i *Icon) validateData() error {
