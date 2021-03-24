@@ -11,6 +11,9 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/ghodss/yaml"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 const (
@@ -156,14 +159,13 @@ func writeToFS(cfg DeclarativeConfig, w fsWriter, rootDir string) error {
 					return fmt.Errorf("mkdir %q: %v", rootDir, err)
 				}
 				for i, obj := range b.Objects {
-					objFilename := filepath.Join(bundleDir, fmt.Sprintf("obj_%04d", i))
+					objFilename := filepath.Join(bundleDir, objectFilename(obj, i))
 					if err := w.WriteFile(objFilename, []byte(obj), 0644); err != nil {
 						return fmt.Errorf("write file %q: %v", objFilename, err)
 					}
 				}
 			}
 		}
-
 	}
 
 	if globals, ok := othersByPackage[globalName]; ok {
@@ -176,6 +178,22 @@ func writeToFS(cfg DeclarativeConfig, w fsWriter, rootDir string) error {
 		}
 	}
 	return nil
+}
+
+func objectFilename(obj string, idx int) string {
+	name, kind := fmt.Sprintf("obj%04d", idx), ""
+	u := unstructured.Unstructured{}
+	if err := yaml.Unmarshal([]byte(obj), &u); err == nil {
+		if u.GetName() != "" {
+			name = u.GetName()
+		}
+		gvk := u.GroupVersionKind()
+		kind = fmt.Sprintf("%s_%s_%s", gvk.Group, gvk.Version, strings.ToLower(gvk.Kind))
+	}
+	if kind == "" {
+		return fmt.Sprintf("%s", name)
+	}
+	return fmt.Sprintf("%s_%s.yaml", name, kind)
 }
 
 func writeFile(cfg DeclarativeConfig, w fsWriter, filename string) error {

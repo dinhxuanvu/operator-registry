@@ -74,6 +74,7 @@ func withSkips(name string) func(*Bundle) {
 }
 
 func newTestBundle(packageName, version string, opts ...bundleOpt) Bundle {
+	csvJson := fmt.Sprintf(`{"kind": "ClusterServiceVersion", "apiVersion": "operators.coreos.com/v1alpha1", "metadata":{"name":%q}}`, testBundleName(packageName, version))
 	b := Bundle{
 		Schema:  schemaBundle,
 		Name:    testBundleName(packageName, version),
@@ -89,9 +90,9 @@ func newTestBundle(packageName, version string, opts ...bundleOpt) Bundle {
 				Image: testBundleImage(packageName, version),
 			},
 		},
-		CsvJSON: `{"kind": "ClusterServiceVersion", "apiVersion": "operators.coreos.com/v1alpha1"}`,
+		CsvJSON: csvJson,
 		Objects: []string{
-			`{"kind": "ClusterServiceVersion", "apiVersion": "operators.coreos.com/v1alpha1"}`,
+			csvJson,
 			`{"kind": "CustomResourceDefinition", "apiVersion": "apiextensions.k8s.io/v1"}`,
 		},
 	}
@@ -159,6 +160,7 @@ func buildAnakinPkgModel() *model.Package {
 			property.MustBuildPackage(pkgName, version),
 			property.MustBuildPackageProvided(pkgName, version),
 		}
+		csvJson := fmt.Sprintf(`{"kind": "ClusterServiceVersion", "apiVersion": "operators.coreos.com/v1alpha1", "metadata":{"name":%q}}`, testBundleName(pkgName, version))
 		for _, channel := range channels {
 			props = append(props, property.MustBuild(&channel))
 			ch := pkg.Channels[channel.Name]
@@ -170,6 +172,7 @@ func buildAnakinPkgModel() *model.Package {
 				skips = append(skips, skip)
 				props = append(props, property.MustBuildSkips(skip))
 			}
+
 			bundle := &model.Bundle{
 				Package:    pkg,
 				Channel:    ch,
@@ -182,9 +185,9 @@ func buildAnakinPkgModel() *model.Package {
 					Name:  "bundle",
 					Image: testBundleImage(pkgName, version),
 				}},
-				CsvJSON: `{"kind": "ClusterServiceVersion", "apiVersion": "operators.coreos.com/v1alpha1"}`,
+				CsvJSON: csvJson,
 				Objects: []string{
-					`{"kind": "ClusterServiceVersion", "apiVersion": "operators.coreos.com/v1alpha1"}`,
+					csvJson,
 					`{"kind": "CustomResourceDefinition", "apiVersion": "apiextensions.k8s.io/v1"}`,
 				},
 			}
@@ -222,6 +225,7 @@ func buildBobaFettPkgModel() *model.Package {
 			property.MustBuildPackage(pkgName, version),
 			property.MustBuildPackageProvided(pkgName, version),
 		}
+		csvJson := fmt.Sprintf(`{"kind": "ClusterServiceVersion", "apiVersion": "operators.coreos.com/v1alpha1", "metadata":{"name":%q}}`, testBundleName(pkgName, version))
 		for _, channel := range channels {
 			props = append(props, property.MustBuild(&channel))
 			ch := pkg.Channels[channel.Name]
@@ -238,9 +242,9 @@ func buildBobaFettPkgModel() *model.Package {
 					Name:  "bundle",
 					Image: testBundleImage(pkgName, version),
 				}},
-				CsvJSON: `{"kind": "ClusterServiceVersion", "apiVersion": "operators.coreos.com/v1alpha1"}`,
+				CsvJSON: csvJson,
 				Objects: []string{
-					`{"kind": "ClusterServiceVersion", "apiVersion": "operators.coreos.com/v1alpha1"}`,
+					csvJson,
 					`{"kind": "CustomResourceDefinition", "apiVersion": "apiextensions.k8s.io/v1"}`,
 				},
 			}
