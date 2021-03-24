@@ -12,7 +12,6 @@ type Mode string
 
 const (
 	ModeSqlite     Mode = "sqlite"
-	ModeDeclCfgTar Mode = "declcfgTar"
 	ModeDeclCfgDir Mode = "declcfgDir"
 )
 
@@ -33,8 +32,6 @@ func DetectSourceMode(path string) (Mode, error) {
 	switch t {
 	case matchers.TypeSqlite:
 		return ModeSqlite, nil
-	case matchers.TypeTar:
-		return ModeDeclCfgTar, nil
 	}
 	return "", fmt.Errorf("cannot use filetype %q as registry source", t)
 }

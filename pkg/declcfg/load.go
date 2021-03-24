@@ -1,9 +1,7 @@
 package declcfg
 
 import (
-	"archive/tar"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -19,20 +17,6 @@ import (
 func LoadDir(configDir string) (*DeclarativeConfig, error) {
 	w := &dirWalker{}
 	return loadFS(configDir, w)
-}
-
-// TODO(joelanford): Delete this since we longer are worried about implicit
-//   migrations and preserving files vs directories.
-func LoadTar(tarFile string) (*DeclarativeConfig, error) {
-	f, err := os.Open(tarFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open file: %v", err)
-	}
-	defer f.Close()
-
-	tr := tar.NewReader(f)
-	tw := tarWalker{tr}
-	return loadFS("index", tw)
 }
 
 func loadFile(configFile string) (*DeclarativeConfig, error) {
@@ -156,31 +140,4 @@ func (w dirWalker) WalkFiles(root string, f func(string, io.Reader) error) error
 		}
 		return f(path, file)
 	})
-}
-
-type tarWalker struct {
-	tr *tar.Reader
-}
-
-func (w tarWalker) WalkFiles(root string, f func(string, io.Reader) error) error {
-	root = strings.TrimPrefix(root, "/")
-	for {
-		info, err := w.tr.Next()
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		if err != nil {
-			return err
-		}
-		if info.Typeflag != tar.TypeReg {
-			continue
-		}
-		if !strings.HasPrefix(info.Name, root) {
-			continue
-		}
-		if err := f(info.Name, w.tr); err != nil {
-			return err
-		}
-	}
-	return nil
 }

@@ -96,12 +96,6 @@ func (s *serve) run(ctx context.Context) error {
 			return fmt.Errorf("load declarative config directory: %v", err)
 		}
 		store, storeErr = declcfgQuerier(*cfg)
-	case mode.ModeDeclCfgTar:
-		cfg, err := declcfg.LoadTar(s.database)
-		if err != nil {
-			return fmt.Errorf("load declarative config tar: %v", err)
-		}
-		store, storeErr = declcfgQuerier(*cfg)
 	case mode.ModeSqlite:
 		// make a writable copy of the db for migrations
 		tmpdb, err := tmp.CopyTmpDB(s.database)

@@ -137,11 +137,6 @@ func TestWriteLoadRoundtrip(t *testing.T) {
 			write: WriteDir,
 			load:  LoadDir,
 		},
-		{
-			name:  "Tar",
-			write: WriteTar,
-			load:  LoadTar,
-		},
 	}
 	for _, s := range specs {
 		t.Run(s.name, func(t *testing.T) {
