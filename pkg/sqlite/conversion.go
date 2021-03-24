@@ -32,22 +32,6 @@ func ToModel(ctx context.Context, q *SQLQuerier) (model.Model, error) {
 	return pkgs, nil
 }
 
-func GetBundleObjects(ctx context.Context, source *SQLQuerier) (map[string]map[string][]string, error) {
-	bundles, err := source.ListBundles(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("could not list bundles from db: %v", err)
-	}
-	objs := map[string]map[string][]string{}
-	for _, b := range bundles {
-		_, ok := objs[b.PackageName]
-		if !ok {
-			objs[b.PackageName] = map[string][]string{}
-		}
-		objs[b.PackageName][b.CsvName] = b.Object
-	}
-	return objs, nil
-}
-
 func initializeModelPackages(ctx context.Context, q *SQLQuerier) (model.Model, error) {
 	pkgNames, err := q.ListPackages(ctx)
 	if err != nil {
