@@ -44,8 +44,8 @@ func convertAPIBundleToModelProperties(b *Bundle) ([]property.Property, error) {
 
 	out = append(out, property.MustBuildChannel(b.ChannelName, b.Replaces))
 
-	providedGVKs := map[property.GVKProvided]*property.GVKProvided{}
-	requiredGVKs := map[property.GVKRequired]*property.GVKRequired{}
+	providedGVKs := map[property.GVK]struct{}{}
+	requiredGVKs := map[property.GVKRequired]struct{}{}
 
 	foundPackageProperty := false
 	for i, p := range b.Properties {
@@ -55,8 +55,8 @@ func convertAPIBundleToModelProperties(b *Bundle) ([]property.Property, error) {
 			if err := json.Unmarshal(json.RawMessage(p.Value), &v); err != nil {
 				return nil, property.ParseError{Idx: i, Typ: p.Type, Err: err}
 			}
-			k := property.GVKProvided{Group: v.Group, Kind: v.Kind, Version: v.Version}
-			providedGVKs[k] = &property.GVKProvided{Group: v.Group, Kind: v.Kind, Version: v.Version, Plural: v.Plural}
+			k := property.GVK{Group: v.Group, Kind: v.Kind, Version: v.Version}
+			providedGVKs[k] = struct{}{}
 		case property.TypePackage:
 			foundPackageProperty = true
 			out = append(out, property.Property{
@@ -79,7 +79,7 @@ func convertAPIBundleToModelProperties(b *Bundle) ([]property.Property, error) {
 				return nil, property.ParseError{Idx: i, Typ: p.Type, Err: err}
 			}
 			k := property.GVKRequired{Group: v.Group, Kind: v.Kind, Version: v.Version}
-			requiredGVKs[k] = &property.GVKRequired{Group: v.Group, Kind: v.Kind, Version: v.Version, Plural: v.Plural}
+			requiredGVKs[k] = struct{}{}
 		case property.TypePackage:
 			out = append(out, property.Property{
 				Type:  property.TypePackageRequired,
@@ -93,29 +93,24 @@ func convertAPIBundleToModelProperties(b *Bundle) ([]property.Property, error) {
 	}
 
 	for _, p := range b.ProvidedApis {
-		k := property.GVKProvided{Group: p.Group, Kind: p.Kind, Version: p.Version}
-		if v, ok := providedGVKs[k]; !ok {
-			providedGVKs[k] = &property.GVKProvided{Group: p.Group, Kind: p.Kind, Version: p.Version, Plural: p.Plural}
-		} else {
-			v.Plural = p.Plural
+		k := property.GVK{Group: p.Group, Kind: p.Kind, Version: p.Version}
+		if _, ok := providedGVKs[k]; !ok {
+			providedGVKs[k] = struct{}{}
 		}
 	}
 	for _, p := range b.RequiredApis {
 		k := property.GVKRequired{Group: p.Group, Kind: p.Kind, Version: p.Version}
-		if v, ok := requiredGVKs[k]; !ok {
-			requiredGVKs[k] = &property.GVKRequired{Group: p.Group, Kind: p.Kind, Version: p.Version, Plural: p.Plural}
-		} else {
-			v.Plural = p.Plural
+		if _, ok := requiredGVKs[k]; !ok {
+			requiredGVKs[k] = struct{}{}
 		}
 	}
 
-	for _, p := range providedGVKs {
-		out = append(out, property.MustBuildGVKProvided(p.Group, p.Version, p.Kind, p.Plural))
-		out = append(out, property.MustBuildGVK(p.Group, p.Version, p.Kind, ""))
+	for p := range providedGVKs {
+		out = append(out, property.MustBuildGVK(p.Group, p.Version, p.Kind))
 	}
 
-	for _, p := range requiredGVKs {
-		out = append(out, property.MustBuildGVKRequired(p.Group, p.Version, p.Kind, p.Plural))
+	for p := range requiredGVKs {
+		out = append(out, property.MustBuildGVKRequired(p.Group, p.Version, p.Kind))
 	}
 
 	return out, nil

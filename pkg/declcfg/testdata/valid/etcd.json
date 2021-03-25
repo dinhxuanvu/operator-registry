@@ -30,14 +30,6 @@
             }
         },
         {
-            "type":"olm.gvk.provided",
-            "value": {
-                "group": "etcd.database.coreos.com",
-                "kind": "EtcdCluster",
-                "version": "v1beta2"
-            }
-        },
-        {
             "type": "olm.channel",
             "value": {
                 "name": "alpha"
@@ -66,14 +58,6 @@
         },
         {
             "type":"olm.gvk",
-            "value":{
-                "group": "etcd.database.coreos.com",
-                "kind": "EtcdBackup",
-                "version": "v1beta2"
-            }
-        },
-        {
-            "type":"olm.gvk.provided",
             "value":{
                 "group": "etcd.database.coreos.com",
                 "kind": "EtcdBackup",
@@ -122,14 +106,6 @@
             }
         },
         {
-            "type":"olm.gvk.provided",
-            "value":{
-                "group": "etcd.database.coreos.com",
-                "kind": "EtcdRestore",
-                "version": "v1beta2"
-            }
-        },
-        {
             "type": "olm.channel",
             "value": {
                 "name": "singlenamespace-alpha",
@@ -159,14 +135,6 @@
         },
         {
             "type": "olm.gvk",
-            "value": {
-                "group": "etcd.database.coreos.com",
-                "kind": "EtcdBackup",
-                "version": "v1beta2"
-            }
-        },
-        {
-            "type": "olm.gvk.provided",
             "value": {
                 "group": "etcd.database.coreos.com",
                 "kind": "EtcdBackup",
@@ -229,14 +197,6 @@
             }
         },
         {
-            "type": "olm.gvk.provided",
-            "value": {
-                "group": "etcd.database.coreos.com",
-                "kind": "EtcdBackup",
-                "version": "v1beta2"
-            }
-        },
-        {
             "type": "olm.gvk.required",
             "value": {
                 "group": "testapi.coreos.com",
@@ -274,14 +234,6 @@
         },
         {
             "type": "olm.gvk",
-            "value": {
-                "group": "etcd.database.coreos.com",
-                "kind": "EtcdBackup",
-                "version": "v1beta2"
-            }
-        },
-        {
-            "type": "olm.gvk.provided",
             "value": {
                 "group": "etcd.database.coreos.com",
                 "kind": "EtcdBackup",

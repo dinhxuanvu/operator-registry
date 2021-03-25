@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/operator-framework/operator-registry/pkg/model"
@@ -22,7 +21,7 @@ func ConvertModelBundleToAPIBundle(b model.Bundle) (*Bundle, error) {
 		PackageName:  b.Package.Name,
 		ChannelName:  b.Channel.Name,
 		BundlePath:   b.Image,
-		ProvidedApis: gvksProvidedtoAPIGVKs(props.GVKsProvided),
+		ProvidedApis: gvksProvidedtoAPIGVKs(props.GVKs),
 		RequiredApis: gvksRequirestoAPIGVKs(props.GVKsRequired),
 		Version:      props.Packages[0].Version,
 		SkipRange:    skipRange,
@@ -52,14 +51,13 @@ func parseProperties(in []property.Property) (*property.Properties, error) {
 	return props, nil
 }
 
-func gvksProvidedtoAPIGVKs(in []property.GVKProvided) []*GroupVersionKind {
+func gvksProvidedtoAPIGVKs(in []property.GVK) []*GroupVersionKind {
 	var out []*GroupVersionKind
 	for _, gvk := range in {
 		out = append(out, &GroupVersionKind{
 			Group:   gvk.Group,
 			Version: gvk.Version,
 			Kind:    gvk.Kind,
-			Plural:  gvk.Plural,
 		})
 	}
 	return out
@@ -71,7 +69,6 @@ func gvksRequirestoAPIGVKs(in []property.GVKRequired) []*GroupVersionKind {
 			Group:   gvk.Group,
 			Version: gvk.Version,
 			Kind:    gvk.Kind,
-			Plural:  gvk.Plural,
 		})
 	}
 	return out
@@ -80,16 +77,9 @@ func gvksRequirestoAPIGVKs(in []property.GVKRequired) []*GroupVersionKind {
 func convertModelPropertiesToAPIProperties(props []property.Property) []*Property {
 	var out []*Property
 	for _, prop := range props {
-		// Remove the "plural" field from GVK properties.
-		value := prop.Value
-		if prop.Type == property.TypeGVKProvided || prop.Type == property.TypeGVKRequired {
-			value = marshalAsGVKProperty(value)
-		}
-
-		// Copy property to API Properties list
 		out = append(out, &Property{
 			Type:  prop.Type,
-			Value: string(value),
+			Value: string(prop.Value),
 		})
 	}
 	return out
@@ -102,7 +92,7 @@ func convertModelPropertiesToAPIDependencies(props []property.Property) []*Depen
 		case property.TypeGVKRequired:
 			out = append(out, &Dependency{
 				Type:  property.TypeGVK,
-				Value: string(marshalAsGVKProperty(prop.Value)),
+				Value: string(prop.Value),
 			})
 		case property.TypePackageRequired:
 			out = append(out, &Dependency{
@@ -112,13 +102,4 @@ func convertModelPropertiesToAPIDependencies(props []property.Property) []*Depen
 		}
 	}
 	return out
-}
-
-func marshalAsGVKProperty(in json.RawMessage) json.RawMessage {
-	var v GroupVersionKind
-	if err := json.Unmarshal(in, &v); err != nil {
-		return in
-	}
-	p := property.MustBuildGVK(v.Group, v.Version, v.Kind, "")
-	return p.Value
 }

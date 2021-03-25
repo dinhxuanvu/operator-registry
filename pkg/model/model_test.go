@@ -367,8 +367,7 @@ func TestValidators(t *testing.T) {
 				Skips:    []string{"anakin.v0.0.2"},
 				Properties: []property.Property{
 					property.MustBuildPackage("anakin", "0.1.0"),
-					property.MustBuildGVK("skywalker.me", "v1alpha1", "PodRacer", ""),
-					property.MustBuildGVKProvided("skywalker.me", "v1alpha1", "PodRacer", ""),
+					property.MustBuildGVK("skywalker.me", "v1alpha1", "PodRacer"),
 					property.MustBuildSkips("anakin.v0.0.2"),
 					property.MustBuildChannel("light", "anakin.v0.0.1"),
 					property.MustBuildChannel("dark", "anakin.v0.0.1"),
@@ -451,7 +450,7 @@ func TestValidators(t *testing.T) {
 			assertion: require.Error,
 		},
 		{
-			name: "Bundle/Error/MissingPackageProvided",
+			name: "Bundle/Error/MissingPackage",
 			v: &Bundle{
 				Package:  pkg,
 				Channel:  ch,
@@ -460,61 +459,6 @@ func TestValidators(t *testing.T) {
 				Replaces: "anakin.v0.0.1",
 				Skips:    []string{"anakin.v0.0.2"},
 				Properties: []property.Property{
-					property.MustBuildSkips("anakin.v0.0.2"),
-					property.MustBuildChannel("light", "anakin.v0.0.1"),
-					property.MustBuildChannel("dark", "anakin.v0.0.1"),
-				},
-			},
-			assertion: require.Error,
-		},
-		{
-			name: "Bundle/Error/NoMatchingPackageProvided",
-			v: &Bundle{
-				Package:  pkg,
-				Channel:  ch,
-				Name:     "anakin.v0.1.0",
-				Image:    "",
-				Replaces: "anakin.v0.0.1",
-				Skips:    []string{"anakin.v0.0.2"},
-				Properties: []property.Property{
-					property.MustBuildSkips("anakin.v0.0.2"),
-					property.MustBuildChannel("light", "anakin.v0.0.1"),
-					property.MustBuildChannel("dark", "anakin.v0.0.1"),
-				},
-			},
-			assertion: require.Error,
-		},
-		{
-			name: "Bundle/Error/NoMatchingGVKProvided",
-			v: &Bundle{
-				Package:  pkg,
-				Channel:  ch,
-				Name:     "anakin.v0.1.0",
-				Image:    "",
-				Replaces: "anakin.v0.0.1",
-				Skips:    []string{"anakin.v0.0.2"},
-				Properties: []property.Property{
-					property.MustBuildPackage("anakin", "0.1.0"),
-					property.MustBuildGVK("skywalker.me", "v1alpha1", "PodRacer", ""),
-					property.MustBuildSkips("anakin.v0.0.2"),
-					property.MustBuildChannel("light", "anakin.v0.0.1"),
-					property.MustBuildChannel("dark", "anakin.v0.0.1"),
-				},
-			},
-			assertion: require.Error,
-		},
-		{
-			name: "Bundle/Error/NoMatchingGVK",
-			v: &Bundle{
-				Package:  pkg,
-				Channel:  ch,
-				Name:     "anakin.v0.1.0",
-				Image:    "",
-				Replaces: "anakin.v0.0.1",
-				Skips:    []string{"anakin.v0.0.2"},
-				Properties: []property.Property{
-					property.MustBuildPackage("anakin", "0.1.0"),
-					property.MustBuildGVKProvided("skywalker.me", "v1alpha1", "PodRacer", ""),
 					property.MustBuildSkips("anakin.v0.0.2"),
 					property.MustBuildChannel("light", "anakin.v0.0.1"),
 					property.MustBuildChannel("dark", "anakin.v0.0.1"),
@@ -560,8 +504,7 @@ func makePackageChannelBundle() (*Package, *Channel) {
 		Image: "anakin-operator:v0.0.1",
 		Properties: []property.Property{
 			property.MustBuildPackage("anakin", "0.0.1"),
-			property.MustBuildGVK("skywalker.me", "v1alpha1", "PodRacer", ""),
-			property.MustBuildGVKProvided("skywalker.me", "v1alpha1", "PodRacer", ""),
+			property.MustBuildGVK("skywalker.me", "v1alpha1", "PodRacer"),
 		},
 	}
 	bundle2 := &Bundle{
@@ -570,8 +513,7 @@ func makePackageChannelBundle() (*Package, *Channel) {
 		Replaces: "anakin.v0.0.1",
 		Properties: []property.Property{
 			property.MustBuildPackage("anakin", "0.0.2"),
-			property.MustBuildGVK("skywalker.me", "v1alpha1", "PodRacer", ""),
-			property.MustBuildGVKProvided("skywalker.me", "v1alpha1", "PodRacer", ""),
+			property.MustBuildGVK("skywalker.me", "v1alpha1", "PodRacer"),
 		},
 	}
 	ch := &Channel{

@@ -14,7 +14,6 @@ func init() {
 		reflect.TypeOf(&PackageRequired{}): TypePackageRequired,
 		reflect.TypeOf(&Channel{}):         TypeChannel,
 		reflect.TypeOf(&GVK{}):             TypeGVK,
-		reflect.TypeOf(&GVKProvided{}):     TypeGVKProvided,
 		reflect.TypeOf(&GVKRequired{}):     TypeGVKRequired,
 		reflect.TypeOf(&skips):             TypeSkips,
 		reflect.TypeOf(&skipRange):         TypeSkipRange,

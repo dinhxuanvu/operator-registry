@@ -641,6 +641,9 @@ func testListBundles(addr string, etcdAlpha *api.Bundle, etcdStable *api.Bundle)
 }
 
 func EqualBundles(t *testing.T, expected, actual api.Bundle) {
+	stripPlural(actual.ProvidedApis)
+	stripPlural(actual.RequiredApis)
+
 	require.ElementsMatch(t, expected.ProvidedApis, actual.ProvidedApis, "provided apis don't match: %#v\n%#v", expected.ProvidedApis, actual.ProvidedApis)
 	require.ElementsMatch(t, expected.RequiredApis, actual.RequiredApis, "required apis don't match: %#v\n%#v", expected.RequiredApis, actual.RequiredApis)
 	require.ElementsMatch(t, expected.Dependencies, actual.Dependencies, "dependencies don't match: %#v\n%#v", expected.Dependencies, actual.Dependencies)
@@ -659,6 +662,12 @@ func EqualBundles(t *testing.T, expected, actual api.Bundle) {
 	}
 
 	require.Truef(t, cmp.Equal(expected, actual, opts...), cmp.Diff(expected, actual, opts...))
+}
+
+func stripPlural(gvks []*api.GroupVersionKind) {
+	for i := range gvks {
+		gvks[i].Plural = ""
+	}
 }
 
 func etcdoperator_v0_9_2(channel string, addSkipsReplaces, addExtraProperties bool) *api.Bundle {
@@ -707,12 +716,12 @@ func etcdoperator_v0_9_2(channel string, addSkipsReplaces, addExtraProperties bo
 			},
 		},
 		ProvidedApis: []*api.GroupVersionKind{
-			{Group: "etcd.database.coreos.com", Version: "v1beta2", Kind: "EtcdCluster", Plural: "etcdclusters"},
-			{Group: "etcd.database.coreos.com", Version: "v1beta2", Kind: "EtcdBackup", Plural: "etcdbackups"},
-			{Group: "etcd.database.coreos.com", Version: "v1beta2", Kind: "EtcdRestore", Plural: "etcdrestores"},
+			{Group: "etcd.database.coreos.com", Version: "v1beta2", Kind: "EtcdCluster"},
+			{Group: "etcd.database.coreos.com", Version: "v1beta2", Kind: "EtcdBackup"},
+			{Group: "etcd.database.coreos.com", Version: "v1beta2", Kind: "EtcdRestore"},
 		},
 		RequiredApis: []*api.GroupVersionKind{
-			{Group: "etcd.database.coreos.com", Version: "v1beta2", Kind: "EtcdCluster", Plural: "etcdclusters"},
+			{Group: "etcd.database.coreos.com", Version: "v1beta2", Kind: "EtcdCluster"},
 		},
 		Version:   "0.9.2",
 		SkipRange: "< 0.6.0",
@@ -726,9 +735,6 @@ func etcdoperator_v0_9_2(channel string, addSkipsReplaces, addExtraProperties bo
 			{Type: "olm.skipRange", Value: `"< 0.6.0"`},
 			{Type: "olm.skips", Value: `"etcdoperator.v0.9.1"`},
 			{Type: "olm.channel", Value: fmt.Sprintf(`{"name":%q,"replaces":"etcdoperator.v0.9.0"}`, channel)},
-			{Type: "olm.gvk.provided", Value: `{"group":"etcd.database.coreos.com","kind":"EtcdCluster","version":"v1beta2"}`},
-			{Type: "olm.gvk.provided", Value: `{"group":"etcd.database.coreos.com","kind":"EtcdRestore","version":"v1beta2"}`},
-			{Type: "olm.gvk.provided", Value: `{"group":"etcd.database.coreos.com","kind":"EtcdBackup","version":"v1beta2"}`},
 			{Type: "olm.gvk.required", Value: `{"group":"etcd.database.coreos.com","kind":"EtcdCluster","version":"v1beta2"}`},
 		}...)
 	}

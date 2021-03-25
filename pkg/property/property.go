@@ -47,24 +47,12 @@ type GVK struct {
 	Group   string `json:"group"`
 	Kind    string `json:"kind"`
 	Version string `json:"version"`
-	Plural  string `json:"plural,omitempty"`
-}
-
-type GVKProvided struct {
-	Group   string `json:"group"`
-	Kind    string `json:"kind"`
-	Version string `json:"version"`
-
-	// TODO(joelanford): It's possible we can get rid of plural fields.
-	//   Check olm operator to see if it expects plural anywhere.
-	Plural string `json:"plural,omitempty"`
 }
 
 type GVKRequired struct {
 	Group   string `json:"group"`
 	Kind    string `json:"kind"`
 	Version string `json:"version"`
-	Plural  string `json:"plural,omitempty"`
 }
 
 type Skips string
@@ -75,7 +63,6 @@ type Properties struct {
 	PackagesRequired []PackageRequired
 	Channels         []Channel
 	GVKs             []GVK
-	GVKsProvided     []GVKProvided
 	GVKsRequired     []GVKRequired
 	Skips            []Skips
 	SkipRanges       []SkipRange
@@ -89,7 +76,6 @@ const (
 	TypePackageRequired = "olm.package.required"
 	TypeChannel         = "olm.channel"
 	TypeGVK             = "olm.gvk"
-	TypeGVKProvided     = "olm.gvk.provided"
 	TypeGVKRequired     = "olm.gvk.required"
 	TypeSkips           = "olm.skips"
 	TypeSkipRange       = "olm.skipRange"
@@ -124,12 +110,6 @@ func Parse(in []Property) (*Properties, error) {
 				return nil, ParseError{Idx: i, Typ: prop.Type, Err: err}
 			}
 			out.GVKs = append(out.GVKs, p)
-		case TypeGVKProvided:
-			var p GVKProvided
-			if err := json.Unmarshal(prop.Value, &p); err != nil {
-				return nil, ParseError{Idx: i, Typ: prop.Type, Err: err}
-			}
-			out.GVKsProvided = append(out.GVKsProvided, p)
 		case TypeGVKRequired:
 			var p GVKRequired
 			if err := json.Unmarshal(prop.Value, &p); err != nil {
@@ -182,32 +162,6 @@ func ValidateBackCompat(in Properties) error {
 	if len(in.Packages) != 1 {
 		return fmt.Errorf("property type %q is required", TypePackage)
 	}
-
-	gvkProps := map[GVK]struct{}{}
-	gvkProvidedProps := map[GVKProvided]struct{}{}
-
-	for _, p := range in.GVKs {
-		// Ignore plural field for when searching for matches.
-		p.Plural = ""
-		gvkProps[p] = struct{}{}
-	}
-	for _, p := range in.GVKsProvided {
-		// Ignore plural field for when searching for matches.
-		p.Plural = ""
-		gvkProvidedProps[p] = struct{}{}
-	}
-
-	for k := range gvkProps {
-		if _, ok := gvkProvidedProps[GVKProvided(k)]; !ok {
-			return MatchMissingError{TypeGVK, k, TypeGVKProvided}
-		}
-	}
-	for k := range gvkProvidedProps {
-		if _, ok := gvkProps[GVK(k)]; !ok {
-			return MatchMissingError{TypeGVKProvided, k, TypeGVK}
-		}
-	}
-
 	return nil
 }
 
@@ -274,14 +228,11 @@ func MustBuildPackageRequired(name, versionRange string) Property {
 func MustBuildChannel(name, replaces string) Property {
 	return MustBuild(&Channel{name, replaces})
 }
-func MustBuildGVK(group, version, kind, plural string) Property {
-	return MustBuild(&GVK{group, kind, version, plural})
+func MustBuildGVK(group, version, kind string) Property {
+	return MustBuild(&GVK{group, kind, version})
 }
-func MustBuildGVKProvided(group, version, kind, plural string) Property {
-	return MustBuild(&GVKProvided{group, kind, version, plural})
-}
-func MustBuildGVKRequired(group, version, kind, plural string) Property {
-	return MustBuild(&GVKRequired{group, kind, version, plural})
+func MustBuildGVKRequired(group, version, kind string) Property {
+	return MustBuild(&GVKRequired{group, kind, version})
 }
 func MustBuildSkips(skips string) Property {
 	s := Skips(skips)
