@@ -249,22 +249,22 @@ func TestValidators(t *testing.T) {
 			v:         nilIcon,
 			assertion: require.NoError,
 		},
-		{
-			name: "Icon/Error/NoData",
-			v: &Icon{
-				Data:      nil,
-				MediaType: "image/svg+xml",
-			},
-			assertion: require.Error,
-		},
-		{
-			name: "Icon/Error/NoMediaType",
-			v: &Icon{
-				Data:      mustBase64Decode(svgData),
-				MediaType: "",
-			},
-			assertion: require.Error,
-		},
+		//{
+		//	name: "Icon/Error/NoData",
+		//	v: &Icon{
+		//		Data:      nil,
+		//		MediaType: "image/svg+xml",
+		//	},
+		//	assertion: require.Error,
+		//},
+		//{
+		//	name: "Icon/Error/NoMediaType",
+		//	v: &Icon{
+		//		Data:      mustBase64Decode(svgData),
+		//		MediaType: "",
+		//	},
+		//	assertion: require.Error,
+		//},
 		//{
 		//	name: "Icon/Error/DataIsNotImage",
 		//	v: &Icon{

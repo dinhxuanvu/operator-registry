@@ -89,16 +89,17 @@ func (i *Icon) Validate() error {
 	if i == nil {
 		return nil
 	}
-	if len(i.Data) == 0 {
-		return errors.New("icon data must be set if icon is defined")
-	}
-	if len(i.MediaType) == 0 {
-		return errors.New("icon mediatype must be set if icon is defined")
-	}
-	// TODO(joelanford): Should we detect the media type of the data and
-	//   compare it to the mediatype listed in the icon field? Currently,
-	//   some production index databases are failing this test, so I'll
-	//   comment this out for now.
+	// TODO(joelanford): Should we check that data and mediatype are set,
+	//   and detect the media type of the data and compare it to the
+	//   mediatype listed in the icon field? Currently, some production
+	//   index databases are failing these tests, so leaving this
+	//   commented out for now.
+	//if len(i.Data) == 0 {
+	//	return errors.New("icon data must be set if icon is defined")
+	//}
+	//if len(i.MediaType) == 0 {
+	//	return errors.New("icon mediatype must be set if icon is defined")
+	//}
 	//return i.validateData()
 	return nil
 }
