@@ -119,7 +119,7 @@ func convertAPIBundleToModelProperties(b *Bundle) ([]property.Property, error) {
 	}
 
 	for i, obj := range b.Object {
-		out = append(out, property.MustBuildBundleObjectRef(filepath.Join("objects", objectFilename(obj, i))))
+		out = append(out, property.MustBuildBundleObjectRef(filepath.Join("objects", b.CsvName, objectFilename(obj, i))))
 	}
 
 	return out, nil
