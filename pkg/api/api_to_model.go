@@ -3,6 +3,11 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
+	"strings"
+
+	"github.com/ghodss/yaml"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/operator-framework/operator-registry/pkg/model"
 	"github.com/operator-framework/operator-registry/pkg/property"
@@ -113,6 +118,10 @@ func convertAPIBundleToModelProperties(b *Bundle) ([]property.Property, error) {
 		out = append(out, property.MustBuildGVKRequired(p.Group, p.Version, p.Kind))
 	}
 
+	for i, obj := range b.Object {
+		out = append(out, property.MustBuildBundleObjectRef(filepath.Join("objects", objectFilename(obj, i))))
+	}
+
 	return out, nil
 }
 
@@ -137,4 +146,20 @@ func getRelatedImages(csvJSON string) ([]model.RelatedImage, error) {
 		relatedImages = append(relatedImages, model.RelatedImage(ri))
 	}
 	return relatedImages, nil
+}
+
+func objectFilename(obj string, idx int) string {
+	name, kind := fmt.Sprintf("obj%04d", idx), ""
+	u := unstructured.Unstructured{}
+	if err := yaml.Unmarshal([]byte(obj), &u); err == nil {
+		if u.GetName() != "" {
+			name = u.GetName()
+		}
+		gvk := u.GroupVersionKind()
+		kind = fmt.Sprintf("%s_%s_%s", gvk.Group, gvk.Version, strings.ToLower(gvk.Kind))
+	}
+	if kind == "" {
+		return fmt.Sprintf("%s", name)
+	}
+	return fmt.Sprintf("%s_%s.yaml", name, kind)
 }

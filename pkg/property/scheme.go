@@ -17,6 +17,7 @@ func init() {
 		reflect.TypeOf(&GVKRequired{}):     TypeGVKRequired,
 		reflect.TypeOf(&skips):             TypeSkips,
 		reflect.TypeOf(&skipRange):         TypeSkipRange,
+		reflect.TypeOf(&BundleObject{}):    TypeBundleObject,
 	}
 }
 

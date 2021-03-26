@@ -89,19 +89,18 @@ func TestWriteDir(t *testing.T) {
 
 				expectedEntryNames := []string{
 					fmt.Sprintf("%s.json", globalName),
-					"anakin.json",
-					"boba-fett.json",
-					"objects",
+					"anakin",
+					"boba-fett",
 				}
 				require.ElementsMatch(t, expectedEntryNames, entryNames)
 
-				anakin, err := loadFile(filepath.Join(testDir, "anakin.json"))
+				anakin, err := loadFile(filepath.Join(testDir, "anakin", "anakin.json"))
 				require.NoError(t, err)
 				assert.Len(t, anakin.Packages, 1)
 				assert.Len(t, anakin.Bundles, 3)
 				assert.Len(t, anakin.Others, 1)
 
-				bobaFett, err := loadFile(filepath.Join(testDir, "boba-fett.json"))
+				bobaFett, err := loadFile(filepath.Join(testDir, "boba-fett", "boba-fett.json"))
 				require.NoError(t, err)
 				assert.Len(t, bobaFett.Packages, 1)
 				assert.Len(t, bobaFett.Bundles, 2)

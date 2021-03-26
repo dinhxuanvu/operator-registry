@@ -6,7 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"path/filepath"
 	"reflect"
+	"strings"
 )
 
 type Property struct {
@@ -58,6 +61,69 @@ type GVKRequired struct {
 type Skips string
 type SkipRange string
 
+type BundleObject struct {
+	File `json:",inline"`
+}
+
+type File struct {
+	ref  string
+	data []byte
+}
+
+type fileJSON struct {
+	Ref  string `json:"ref,omitempty"`
+	Data []byte `json:"data,omitempty"`
+}
+
+func (f *File) UnmarshalJSON(data []byte) error {
+	var t fileJSON
+	if err := json.Unmarshal(data, &t); err != nil {
+		return err
+	}
+	if len(t.Ref) > 0 && len(t.Data) > 0 {
+		return errors.New("fields 'ref' and 'data' are mutually exclusive")
+	}
+	f.ref = t.Ref
+	f.data = t.Data
+	return nil
+}
+
+func (f *File) MarshalJSON() ([]byte, error) {
+	return json.Marshal(fileJSON{
+		Ref:  f.ref,
+		Data: f.data,
+	})
+}
+
+func (f *File) IsRef() bool {
+	return len(f.ref) > 0
+}
+
+func (f *File) GetRef() string {
+	return f.ref
+}
+
+func (f *File) GetData(root, cwd string) ([]byte, error) {
+	if f.data != nil {
+		return f.data, nil
+	}
+	rootAbs, err := filepath.Abs(root)
+	if err != nil {
+		return nil, err
+	}
+	if filepath.IsAbs(f.ref) {
+		return nil, fmt.Errorf("reference must be a relative path")
+	}
+	refAbs, err := filepath.Abs(filepath.Join(cwd, f.ref))
+	if err != nil {
+		return nil, err
+	}
+	if !strings.HasPrefix(refAbs, rootAbs) {
+		return nil, fmt.Errorf("reference %q must be within root %q", refAbs, rootAbs)
+	}
+	return ioutil.ReadFile(refAbs)
+}
+
 type Properties struct {
 	Packages         []Package
 	PackagesRequired []PackageRequired
@@ -66,6 +132,7 @@ type Properties struct {
 	GVKsRequired     []GVKRequired
 	Skips            []Skips
 	SkipRanges       []SkipRange
+	BundleObjects    []BundleObject
 
 	All    []Property
 	Others []Property
@@ -79,6 +146,7 @@ const (
 	TypeGVKRequired     = "olm.gvk.required"
 	TypeSkips           = "olm.skips"
 	TypeSkipRange       = "olm.skipRange"
+	TypeBundleObject    = "olm.bundle.object"
 )
 
 func Parse(in []Property) (*Properties, error) {
@@ -128,6 +196,12 @@ func Parse(in []Property) (*Properties, error) {
 				return nil, ParseError{Idx: i, Typ: prop.Type, Err: err}
 			}
 			out.SkipRanges = append(out.SkipRanges, p)
+		case TypeBundleObject:
+			var p BundleObject
+			if err := json.Unmarshal(prop.Value, &p); err != nil {
+				return nil, ParseError{Idx: i, Typ: prop.Type, Err: err}
+			}
+			out.BundleObjects = append(out.BundleObjects, p)
 		default:
 			var p json.RawMessage
 			if err := json.Unmarshal(prop.Value, &p); err != nil {
@@ -241,4 +315,10 @@ func MustBuildSkips(skips string) Property {
 func MustBuildSkipRange(skipRange string) Property {
 	s := SkipRange(skipRange)
 	return MustBuild(&s)
+}
+func MustBuildBundleObjectRef(ref string) Property {
+	return MustBuild(&BundleObject{File: File{ref: ref}})
+}
+func MustBuildBundleObjectData(data []byte) Property {
+	return MustBuild(&BundleObject{File: File{data: data}})
 }

@@ -8,10 +8,8 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 
-	"github.com/ghodss/yaml"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"github.com/operator-framework/operator-registry/pkg/property"
 )
 
 const (
@@ -72,26 +70,18 @@ func writeToFS(cfg DeclarativeConfig, w fsWriter, rootDir string) error {
 			Bundles:  bundlesByPackage[p.Name],
 			Others:   othersByPackage[p.Name],
 		}
-		filename := filepath.Join(rootDir, fmt.Sprintf("%s.json", p.Name))
+		pkgDir := filepath.Join(rootDir, p.Name)
+		if err := w.MkdirAll(pkgDir, 0755); err != nil {
+			return fmt.Errorf("mkdir %q: %v", pkgDir, err)
+		}
+		filename := filepath.Join(pkgDir, fmt.Sprintf("%s.json", p.Name))
 		if err := writeFile(fcfg, w, filename); err != nil {
 			return err
 		}
-	}
 
-	for pkgName, bundles := range bundlesByPackage {
-		pkgDir := filepath.Join(rootDir, objectsDirName, pkgName)
-		for _, b := range bundles {
-			if len(b.Objects) > 0 {
-				bundleDir := filepath.Join(pkgDir, b.Name)
-				if err := w.MkdirAll(bundleDir, 0755); err != nil {
-					return fmt.Errorf("mkdir %q: %v", rootDir, err)
-				}
-				for i, obj := range b.Objects {
-					objFilename := filepath.Join(bundleDir, objectFilename(obj, i))
-					if err := w.WriteFile(objFilename, []byte(obj), 0644); err != nil {
-						return fmt.Errorf("write file %q: %v", objFilename, err)
-					}
-				}
+		for _, b := range fcfg.Bundles {
+			if err := writeObjectFiles(b, w, pkgDir); err != nil {
+				return fmt.Errorf("write object files for bundle %q: %v", b.Name, err)
 			}
 		}
 	}
@@ -108,20 +98,27 @@ func writeToFS(cfg DeclarativeConfig, w fsWriter, rootDir string) error {
 	return nil
 }
 
-func objectFilename(obj string, idx int) string {
-	name, kind := fmt.Sprintf("obj%04d", idx), ""
-	u := unstructured.Unstructured{}
-	if err := yaml.Unmarshal([]byte(obj), &u); err == nil {
-		if u.GetName() != "" {
-			name = u.GetName()
+func writeObjectFiles(b Bundle, w fsWriter, baseDir string) error {
+	props, err := property.Parse(b.Properties)
+	if err != nil {
+		return fmt.Errorf("parse properties: %v", err)
+	}
+	if len(props.BundleObjects) != len(b.Objects) {
+		return fmt.Errorf("expected %d properties of type %q, found %d", len(b.Objects), property.TypeBundleObject, len(props.BundleObjects))
+	}
+	for i, p := range props.BundleObjects {
+		if p.IsRef() {
+			objPath := filepath.Join(baseDir, p.GetRef())
+			objDir := filepath.Dir(objPath)
+			if err := w.MkdirAll(objDir, 0755); err != nil {
+				return fmt.Errorf("create directory %q for bundle object ref %q: %v", objDir, p.GetRef(), err)
+			}
+			if err := w.WriteFile(objPath, []byte(b.Objects[i]), 0644); err != nil {
+				return fmt.Errorf("write bundle object for ref %q: %v", p.GetRef(), err)
+			}
 		}
-		gvk := u.GroupVersionKind()
-		kind = fmt.Sprintf("%s_%s_%s", gvk.Group, gvk.Version, strings.ToLower(gvk.Kind))
 	}
-	if kind == "" {
-		return fmt.Sprintf("%s", name)
-	}
-	return fmt.Sprintf("%s_%s.yaml", name, kind)
+	return nil
 }
 
 func writeFile(cfg DeclarativeConfig, w fsWriter, filename string) error {
