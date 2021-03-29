@@ -55,12 +55,6 @@ func TestParseProperties(t *testing.T) {
 					{Name: "beta", Replaces: "foo.v0.0.4"},
 				},
 				Skips: []property.Skips{"foo.v0.0.1", "foo.v0.0.2"},
-				All: []property.Property{
-					property.MustBuildChannel("alpha", "foo.v0.0.3"),
-					property.MustBuildChannel("beta", "foo.v0.0.4"),
-					property.MustBuildSkips("foo.v0.0.1"),
-					property.MustBuildSkips("foo.v0.0.2"),
-				},
 			},
 		},
 	}

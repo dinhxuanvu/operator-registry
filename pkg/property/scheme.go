@@ -26,10 +26,10 @@ var scheme map[reflect.Type]string
 func AddToScheme(typ string, p interface{}) {
 	t := reflect.TypeOf(p)
 	if t.Kind() != reflect.Ptr {
-		panic("All types must be pointers to structs.")
+		panic("input must be a pointer to a type")
 	}
 	if _, ok := scheme[t]; ok {
-		panic(fmt.Sprintf("Scheme already contains registration for %s", t))
+		panic(fmt.Sprintf("scheme already contains registration for type %q", t))
 	}
 	scheme[t] = typ
 }

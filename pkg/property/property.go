@@ -88,23 +88,23 @@ func (f *File) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (f *File) MarshalJSON() ([]byte, error) {
+func (f File) MarshalJSON() ([]byte, error) {
 	return json.Marshal(fileJSON{
 		Ref:  f.ref,
 		Data: f.data,
 	})
 }
 
-func (f *File) IsRef() bool {
+func (f File) IsRef() bool {
 	return len(f.ref) > 0
 }
 
-func (f *File) GetRef() string {
+func (f File) GetRef() string {
 	return f.ref
 }
 
-func (f *File) GetData(root, cwd string) ([]byte, error) {
-	if f.data != nil {
+func (f File) GetData(root, cwd string) ([]byte, error) {
+	if !f.IsRef() {
 		return f.data, nil
 	}
 	rootAbs, err := filepath.Abs(root)
@@ -134,7 +134,6 @@ type Properties struct {
 	SkipRanges       []SkipRange
 	BundleObjects    []BundleObject
 
-	All    []Property
 	Others []Property
 }
 
@@ -152,7 +151,6 @@ const (
 func Parse(in []Property) (*Properties, error) {
 	var out Properties
 	for i, prop := range in {
-		out.All = append(out.All, prop)
 		switch prop.Type {
 		case TypePackage:
 			var p Package
@@ -250,11 +248,11 @@ func Build(p interface{}) (*Property, error) {
 	} else {
 		t := reflect.TypeOf(p)
 		if t.Kind() != reflect.Ptr {
-			panic("All types must be pointers to structs.")
+			return nil, errors.New("input must be a pointer to a type")
 		}
 		typ, ok = scheme[t]
 		if !ok {
-			panic(fmt.Sprintf("%s not a known property type", t))
+			return nil, fmt.Errorf("%s not a known property type registered with the scheme", t)
 		}
 		val = p
 	}
