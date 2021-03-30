@@ -134,8 +134,6 @@ func (q Querier) GetChannelEntriesThatReplace(_ context.Context, name string) ([
 	return entries, nil
 }
 
-// TODO(joelanford): What if multiple bundles replace this one?
-//    Don't worry about this. Not used anymore.
 func (q Querier) GetBundleThatReplaces(_ context.Context, name, pkgName, channelName string) (*api.Bundle, error) {
 	pkg, ok := q.pkgs[pkgName]
 	if !ok {
@@ -146,6 +144,10 @@ func (q Querier) GetBundleThatReplaces(_ context.Context, name, pkgName, channel
 		return nil, fmt.Errorf("package %q, channel %q not found", pkgName, channelName)
 	}
 
+	// NOTE: iterating over a map is non-deterministic in Go, so if multiple bundles replace this one,
+	//       the bundle returned by this function is also non-deterministic. The sqlite implementation
+	//       is ALSO non-deterministic because it doesn't use ORDER BY, so its probably okay for this
+	//       implementation to be non-deterministic as well.
 	for _, b := range ch.Bundles {
 		if bundleReplaces(*b, name) {
 			apiBundle, err := api.ConvertModelBundleToAPIBundle(*b)
