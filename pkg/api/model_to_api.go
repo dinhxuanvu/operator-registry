@@ -77,6 +77,17 @@ func gvksRequirestoAPIGVKs(in []property.GVKRequired) []*GroupVersionKind {
 func convertModelPropertiesToAPIProperties(props []property.Property) []*Property {
 	var out []*Property
 	for _, prop := range props {
+
+		// NOTE: This is a special case filter to prevent problems with existing client implementations that
+		//       project bundle properties into CSV annotations and store those CSVs in a size-constrained
+		//       storage backend (e.g. etcd via kube-apiserver). If the bundle object property has data inlined
+		//       in its `Data` field, this CSV annotation projection would cause the size of the on-cluster
+		//       CSV to at least double, which is untenable since CSVs already have known issues running up
+		//       against etcd size constraints.
+		if prop.Type == property.TypeBundleObject {
+			continue
+		}
+
 		out = append(out, &Property{
 			Type:  prop.Type,
 			Value: string(prop.Value),

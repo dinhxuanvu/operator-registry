@@ -736,10 +736,6 @@ func etcdoperator_v0_9_2(channel string, addSkipsReplaces, addExtraProperties bo
 			{Type: "olm.skips", Value: `"etcdoperator.v0.9.1"`},
 			{Type: "olm.channel", Value: fmt.Sprintf(`{"name":%q,"replaces":"etcdoperator.v0.9.0"}`, channel)},
 			{Type: "olm.gvk.required", Value: `{"group":"etcd.database.coreos.com","kind":"EtcdCluster","version":"v1beta2"}`},
-			{Type: "olm.bundle.object", Value: `{"ref":"objects/etcdoperator.v0.9.2/etcdbackups.etcd.database.coreos.com_apiextensions.k8s.io_v1beta1_customresourcedefinition.yaml"}`},
-			{Type: "olm.bundle.object", Value: `{"ref":"objects/etcdoperator.v0.9.2/etcdclusters.etcd.database.coreos.com_apiextensions.k8s.io_v1beta1_customresourcedefinition.yaml"}`},
-			{Type: "olm.bundle.object", Value: `{"ref":"objects/etcdoperator.v0.9.2/etcdoperator.v0.9.2_operators.coreos.com_v1alpha1_clusterserviceversion.yaml"}`},
-			{Type: "olm.bundle.object", Value: `{"ref":"objects/etcdoperator.v0.9.2/etcdrestores.etcd.database.coreos.com_apiextensions.k8s.io_v1beta1_customresourcedefinition.yaml"}`},
 		}...)
 	}
 	return b
