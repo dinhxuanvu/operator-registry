@@ -19,10 +19,14 @@ func ConvertFromModel(mpkgs model.Model) DeclarativeConfig {
 				MediaType: mpkg.Icon.MediaType,
 			}
 		}
+		defaultChannel := ""
+		if mpkg.DefaultChannel != nil {
+			defaultChannel = mpkg.DefaultChannel.Name
+		}
 		cfg.Packages = append(cfg.Packages, Package{
 			Schema:         schemaPackage,
 			Name:           mpkg.Name,
-			DefaultChannel: mpkg.DefaultChannel.Name,
+			DefaultChannel: defaultChannel,
 			Icon:           i,
 			Description:    mpkg.Description,
 		})
