@@ -467,6 +467,25 @@ func TestValidators(t *testing.T) {
 			assertion: require.Error,
 		},
 		{
+			name: "Bundle/Error/MultiplePackages",
+			v: &Bundle{
+				Package:  pkg,
+				Channel:  ch,
+				Name:     "anakin.v0.1.0",
+				Image:    "",
+				Replaces: "anakin.v0.0.1",
+				Skips:    []string{"anakin.v0.0.2"},
+				Properties: []property.Property{
+					property.MustBuildPackage("anakin", "0.1.0"),
+					property.MustBuildPackage("anakin", "0.2.0"),
+					property.MustBuildSkips("anakin.v0.0.2"),
+					property.MustBuildChannel("light", "anakin.v0.0.1"),
+					property.MustBuildChannel("dark", "anakin.v0.0.1"),
+				},
+			},
+			assertion: require.Error,
+		},
+		{
 			name: "RelatedImage/Success/Valid",
 			v: RelatedImage{
 				Name:  "foo",

@@ -70,45 +70,6 @@ func TestValidate(t *testing.T) {
 	}
 }
 
-func TestValidateBackCompat(t *testing.T) {
-	type spec struct {
-		name      string
-		input     Properties
-		assertion assert.ErrorAssertionFunc
-	}
-	specs := []spec{
-		{
-			name: "Success",
-			input: Properties{
-				Packages: []Package{{
-					PackageName: "testPackage",
-					Version:     "0.1.0",
-				}},
-			},
-			assertion: assert.NoError,
-		},
-		{
-			name: "Error/TooManyPackages",
-			input: Properties{
-				Packages: []Package{
-					{}, {},
-				},
-			},
-			assertion: assert.Error,
-		},
-		{
-			name:      "Error/NoPackages",
-			input:     Properties{},
-			assertion: assert.Error,
-		},
-	}
-	for _, s := range specs {
-		t.Run(s.name, func(t *testing.T) {
-			s.assertion(t, ValidateBackCompat(s.input))
-		})
-	}
-}
-
 func TestFile_MarshalJSON(t *testing.T) {
 	type spec struct {
 		name      string
