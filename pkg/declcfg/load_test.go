@@ -1,13 +1,14 @@
 package declcfg
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestLoadFile(t *testing.T) {
+func TestReadJSON(t *testing.T) {
 	type spec struct {
 		name              string
 		file              string
@@ -18,19 +19,20 @@ func TestLoadFile(t *testing.T) {
 	}
 	specs := []spec{
 		{
-			name:      "Error/NonExistentFile",
-			file:      "testdata/invalid/non-existent.json",
-			assertion: require.Error,
+			name:              "Ignored/NotJSON",
+			file:              "testdata/invalid/not-json.txt",
+			assertion:         require.NoError,
+			expectNumPackages: 0,
+			expectNumBundles:  0,
+			expectNumOthers:   0,
 		},
 		{
-			name:      "Error/NotJSON",
-			file:      "testdata/invalid/not-json.txt",
-			assertion: require.Error,
-		},
-		{
-			name:      "Error/NotJSONObject",
-			file:      "testdata/invalid/not-json-object.json",
-			assertion: require.Error,
+			name:              "Ignored/NotJSONObject",
+			file:              "testdata/invalid/not-json-object.json",
+			assertion:         require.NoError,
+			expectNumPackages: 0,
+			expectNumBundles:  0,
+			expectNumOthers:   0,
 		},
 		{
 			name:      "Error/InvalidPackageJSON",
@@ -62,7 +64,10 @@ func TestLoadFile(t *testing.T) {
 
 	for _, s := range specs {
 		t.Run(s.name, func(t *testing.T) {
-			cfg, err := loadFile(s.file)
+			f, err := os.Open(s.file)
+			require.NoError(t, err)
+
+			cfg, err := readJSON(f)
 			s.assertion(t, err)
 			if err == nil {
 				require.NotNil(t, cfg)
